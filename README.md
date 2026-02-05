@@ -1,6 +1,6 @@
-# Janus IdP (Docker Version)
+# Janus IdP
 
-Janus IdP é um Identity Provider (IdP) leve e moderno construído com **Node.js**, **Express**, **oidc-provider** e **Prisma 7**. Esta versão foi projetada para rodar inteiramente via **Docker Compose**.
+Janus IdP é um Identity Provider (IdP) construído com **Node.js**, **Express**, **oidc-provider** e **Prisma 7**. Esta versão foi projetada para rodar inteiramente via **Docker Compose**.
 
 ## 🚀 Funcionalidades
 

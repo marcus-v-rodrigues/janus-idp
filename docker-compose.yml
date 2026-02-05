@@ -6,13 +6,37 @@ services:
     container_name: idp_db
     restart: always
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:-idp_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123_senha_segura}
+      POSTGRES_DB: ${POSTGRES_DB:-idp_db}
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U idp_admin -d idp_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    container_name: idp_app
+    restart: always
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-idp_admin}:${POSTGRES_PASSWORD:-123_senha_segura}@db:5432/${POSTGRES_DB:-idp_db}?schema=public
+      - NODE_ENV=production
+      - PORT=3000
+      - ISSUER_URL=${ISSUER_URL}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
+      - OIDC_REDIRECT_URIS=${OIDC_REDIRECT_URIS}
+      - COOKIE_KEYS=${COOKIE_KEYS}
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   postgres_data:

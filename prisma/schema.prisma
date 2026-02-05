@@ -31,3 +31,16 @@ model OidcPayload {
   @@index([type])
   @@index([grantId])
 }
+
+model Client {
+  id            String   @id @default(uuid())
+  clientId      String   @unique
+  clientSecret  String
+  name          String?  // Nome amigável (ex: 'Meu App CRM')
+  redirectUris  String[] // Postgres suporta arrays nativamente
+  grantTypes    String[] @default(["authorization_code", "refresh_token"])
+  responseTypes String[] @default(["code"])
+  scope         String?  @default("openid profile email")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

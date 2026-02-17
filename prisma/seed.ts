@@ -10,9 +10,9 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 /**
- * Hash a password using bcrypt
- * @param password - Plain text password
- * @returns Hashed password
+ * Faz hash de uma senha usando bcrypt
+ * @param password - Senha em texto simples
+ * @returns Senha com hash
  */
 async function hashPassword(password: string): Promise<string> {
   const saltRounds = 12;
@@ -20,15 +20,15 @@ async function hashPassword(password: string): Promise<string> {
 }
 
 /**
- * Create or verify admin user
- * This function is idempotent - it will only create the user if it doesn't exist
+ * Cria ou verifica o usuário administrador
+ * Esta função é idempotente - ela só criará o usuário se ele não existir
  */
 async function seedAdminUser(): Promise<void> {
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@seudominio.com';
   const adminPassword = process.env.ADMIN_PASSWORD || 'Admin123!';
   const adminName = process.env.ADMIN_NAME || 'Administrador';
 
-  // Check if admin user already exists
+  // Verifica se o usuário administrador já existe
   const existingAdmin = await prisma.user.findUnique({
     where: { email: adminEmail },
   });
@@ -38,10 +38,10 @@ async function seedAdminUser(): Promise<void> {
     return;
   }
 
-  // Hash the password
+  // Faz hash da senha
   const passwordHash = await hashPassword(adminPassword);
 
-  // Create admin user
+  // Cria o usuário administrador
   await prisma.user.create({
     data: {
       email: adminEmail,
@@ -58,11 +58,11 @@ async function seedAdminUser(): Promise<void> {
 }
 
 /**
- * Seed OIDC clients
- * This function is idempotent - it will only create clients that don't exist
+ * Popula clientes OIDC
+ * Esta função é idempotente - ela só criará clientes que não existem
  */
 async function seedClients(): Promise<void> {
-  // Seed do cliente de teste (OIDC Debugger)
+  // Popula o cliente de teste (OIDC Debugger)
   // NOTA: As variáveis de ambiente OIDC_CLIENT_* são usadas apenas aqui no seed
   // para criar o cliente no banco. O servidor carrega todos os clientes dinamicamente
   // do banco em src/index.ts.
@@ -88,7 +88,7 @@ async function seedClients(): Promise<void> {
     console.log('✓ Cliente de teste já existe.');
   }
 
-  // Seed do cliente ux-auditor
+  // Popula o cliente ux-auditor
   // NOTA: As variáveis de ambiente JANUS_* são usadas apenas aqui no seed
   // para criar o cliente no banco. O servidor carrega todos os clientes dinamicamente
   // do banco em src/index.ts.
@@ -116,10 +116,10 @@ async function seedClients(): Promise<void> {
   }
 
   // ============================================================================
-  // FUTURO: Client do Dashboard
+  // FUTURO: Cliente do Dashboard
   // ============================================================================
   // Se decidirmos mover os Clients para o banco no futuro, use a estrutura abaixo
-  // para inserir o client do dashboard:
+  // para inserir o cliente do dashboard:
   //
   // const dashboardClientId = 'janus-dashboard';
   // const dashboardClientExists = await prisma.client.findUnique({
@@ -158,11 +158,11 @@ async function main() {
     console.log('   O seed será executado com cautela. Verifique as credenciais!\n');
   }
 
-  // Seed admin user
+  // Popula o usuário administrador
   await seedAdminUser();
   console.log('');
 
-  // Seed clients
+  // Popula os clientes
   await seedClients();
   console.log('');
 

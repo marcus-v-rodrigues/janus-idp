@@ -2,8 +2,10 @@ import { Provider, Configuration } from 'oidc-provider';
 import express from 'express';
 import * as dotenv from 'dotenv';
 import helmet from 'helmet';
+import session from 'express-session';
 import { PrismaAdapter, prisma } from './adapter';
 import interactionRoutes from './routes/interaction';
+import adminRoutes from './routes/admin';
 import { findAccount } from './services/account';
 
 dotenv.config();
@@ -70,7 +72,19 @@ async function startServer() {
   app.use(express.urlencoded({ extended: true }));
   app.use(express.json());
 
-  // Configuração do EJS como view engine
+  // Configuração de sessão para autenticação do administrador
+  app.use(session({
+    secret: process.env.SESSION_SECRET || 'janus-session-secret-change-in-production',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000, // 24 horas
+    },
+  }));
+
+  // Configuração do EJS como view engine (legado, mantido para visualizações de consentimento/erro)
   app.set('view engine', 'ejs');
   app.set('views', './views');
 
@@ -82,6 +96,9 @@ async function startServer() {
   // Rotas de interação (login e consentimento)
   app.use(interactionRoutes(oidc));
 
+  // Rotas do Portal Administrativo
+  app.use('/admin', adminRoutes);
+
   // Rota principal do OIDC montada no path /oidc
   app.use('/oidc', oidc.callback());
 
@@ -90,6 +107,7 @@ async function startServer() {
     console.log(`🌐 OpenID Configuration: ${issuer}/.well-known/openid-configuration`);
     console.log(`📊 Clientes carregados do banco: ${clientsConfig.length}`);
     clientsConfig.forEach(c => console.log(`   - ${c.client_id}`));
+    console.log(`\n🔐 Admin Portal: http://localhost:${port}/admin`);
     console.log(`\nPara testar, acesse o OIDC Debugger.`);
   });
 }

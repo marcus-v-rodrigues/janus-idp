@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { Provider } from 'oidc-provider';
 import { prisma } from '../adapter';
 import * as bcrypt from 'bcryptjs';
+import { renderView } from '../utils/renderer';
+import { Login } from '../views/oidc/Login';
 
 const router = Router();
 
@@ -19,19 +21,25 @@ export default function interactionRoutes(oidc: Provider): Router {
     try {
       const { uid, prompt, params, session } = await oidc.interactionDetails(req, res);
 
-      // Determina qual view renderizar baseado no prompt
+      // Determina qual visualização renderizar com base no prompt
       const client = await oidc.Client.find(params.client_id as string);
 
       switch (prompt.name) {
         case 'login': {
-          return res.render('interaction/login', {
+          if (!client) {
+            return res.status(400).send('Client not found');
+          }
+          return renderView(res, Login, {
             uid,
-            client,
+            client: {
+              clientId: client.clientId,
+              name: (client as any).name || null,
+              logoUri: (client as any).logoUri || null,
+              brandColor: (client as any).brandColor || null,
+            },
             params,
-            title: 'Sign in',
-            details: prompt.details,
             flash: undefined,
-          });
+          }, { title: 'Sign in' });
         }
         case 'consent': {
           // Aprovação automática se o mesmo usuário já estiver logado
@@ -86,18 +94,27 @@ export default function interactionRoutes(oidc: Provider): Router {
       const { uid, prompt, params } = await oidc.interactionDetails(req, res);
       const client = await oidc.Client.find(params.client_id as string);
 
+      if (!client) {
+        return res.status(400).send('Client not found');
+      }
+
       const { email, password } = req.body;
+
+      const clientData = {
+        clientId: client.clientId,
+        name: (client as any).name || null,
+        logoUri: (client as any).logoUri || null,
+        brandColor: (client as any).brandColor || null,
+      };
 
       // Validação básica dos campos
       if (!email || !password) {
-        return res.render('interaction/login', {
+        return renderView(res, Login, {
           uid,
-          client,
+          client: clientData,
           params,
-          title: 'Sign in',
-          details: prompt.details,
           flash: 'Please provide both email and password',
-        });
+        }, { title: 'Sign in' });
       }
 
       // Busca o usuário no banco de dados pelo email
@@ -106,27 +123,23 @@ export default function interactionRoutes(oidc: Provider): Router {
       });
 
       if (!user) {
-        return res.render('interaction/login', {
+        return renderView(res, Login, {
           uid,
-          client,
+          client: clientData,
           params,
-          title: 'Sign in',
-          details: prompt.details,
           flash: 'Invalid email or password',
-        });
+        }, { title: 'Sign in' });
       }
 
       // Verifica se a senha está correta usando bcrypt
       const isValidPassword = await bcrypt.compare(password, user.passwordHash);
       if (!isValidPassword) {
-        return res.render('interaction/login', {
+        return renderView(res, Login, {
           uid,
-          client,
+          client: clientData,
           params,
-          title: 'Sign in',
-          details: prompt.details,
           flash: 'Invalid email or password',
-        });
+        }, { title: 'Sign in' });
       }
 
       // Cria o resultado da interação de login

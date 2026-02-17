@@ -6,12 +6,18 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
   passwordHash  String
   name          String?
   emailVerified Boolean  @default(false)
+  role          Role     @default(USER)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -58,6 +64,8 @@ model Client {
   clientId                String   @unique
   clientSecret            String
   name                    String?  // Nome amigável (ex: 'Meu App CRM')
+  logoUri                 String?  // URL do logo para white-label
+  brandColor              String?  // Cor da marca para white-label
   redirectUris            String[]
   postLogoutRedirectUris  String[] // Novo campo recomendado
   grantTypes              String[] @default(["authorization_code", "refresh_token"])

@@ -3,7 +3,6 @@ import { prisma } from '../adapter';
 import * as bcrypt from 'bcryptjs';
 import { ensureAdmin, ensureNotAdmin } from '../middleware/auth';
 import { renderView } from '../utils/renderer';
-import '../types/express';
 
 // Importa as visualizações de admin
 import { Dashboard } from '../views/admin/Dashboard';

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../adapter';
-import '../types/express';
+
 
 /**
  * Middleware para garantir que o usuário tenha a função ADMIN.

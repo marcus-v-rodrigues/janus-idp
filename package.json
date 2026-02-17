@@ -41,7 +41,8 @@
     "oidc-provider": "^9.6.0",
     "pg": "^8.18.0",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "ts-node": "^10.9.2"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -55,7 +56,6 @@
     "dotenv-cli": "^11.0.0",
     "nodemon": "^3.1.11",
     "prisma": "7.3.0",
-    "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }
 }

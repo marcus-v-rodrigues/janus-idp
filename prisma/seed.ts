@@ -92,8 +92,8 @@ async function seedClients(): Promise<void> {
   // NOTA: As variáveis de ambiente JANUS_* são usadas apenas aqui no seed
   // para criar o cliente no banco. O servidor carrega todos os clientes dinamicamente
   // do banco em src/index.ts.
-  const auditorClientId = process.env.JANUS_CLIENT_ID || 'ux-auditor';
-  const baseDomain = process.env.JANUS_BASE_DOMAIN || 'dashboard.seudominio.com';
+  const auditorClientId = process.env.UX_CLIENT_ID || 'ux-auditor';
+  const baseDomain = process.env.UX_BASE_DOMAIN || 'dashboard.seudominio.com';
   const dashboardExists = await prisma.client.findUnique({
     where: { clientId: auditorClientId },
   });
@@ -102,9 +102,9 @@ async function seedClients(): Promise<void> {
     await prisma.client.create({
       data: {
         clientId: auditorClientId,
-        clientSecret: process.env.JANUS_CLIENT_SECRET || 'janus_dashboard_secret',
+        clientSecret: process.env.UX_CLIENT_SECRET || 'janus_dashboard_secret',
         name: 'UX Auditor',
-        redirectUris: [`https://${baseDomain}/api/auth/callback/janus`],
+        redirectUris: [`https://${baseDomain}/api/auth/callback/`],
         grantTypes: ['authorization_code', 'refresh_token'],
         responseTypes: ['code'],
         scope: 'openid profile email'

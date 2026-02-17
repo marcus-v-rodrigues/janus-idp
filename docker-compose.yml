@@ -35,9 +35,9 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
       DATABASE_URL: postgresql://${POSTGRES_USER:-idp_admin}:${POSTGRES_PASSWORD}@janus-db:5432/${POSTGRES_DB:-idp_db}?schema=public
       ISSUER_URL: ${ISSUER_URL:-http://localhost:3000/oidc}
-      JANUS_CLIENT_ID: ${JANUS_CLIENT_ID:-ux-auditor}
-      JANUS_CLIENT_SECRET: ${JANUS_CLIENT_SECRET}
-      JANUS_BASE_DOMAIN: ${JANUS_BASE_DOMAIN:-dashboard.seudominio.com}
+      UX_CLIENT_ID: ${UX_CLIENT_ID:-ux-auditor}
+      UX_CLIENT_SECRET: ${UX_CLIENT_SECRET}
+      UX_BASE_DOMAIN: ${UX_BASE_DOMAIN:-dashboard.seudominio.com}
       COOKIE_KEYS: ${COOKIE_KEYS}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}

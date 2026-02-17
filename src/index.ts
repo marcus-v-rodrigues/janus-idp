@@ -29,6 +29,9 @@ async function startServer() {
     cookies: {
       keys: (process.env.COOKIE_KEYS || 'uma_chave_secreta_para_dev_1,uma_chave_secreta_para_dev_2').split(','),
     },
+    pkce: {
+      required: () => true,
+    },
     features: {
       devInteractions: { enabled: true },
       introspection: { enabled: true },

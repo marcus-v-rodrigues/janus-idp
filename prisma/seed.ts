@@ -14,17 +14,19 @@ async function main() {
     return;
   }
 
-  const clientId = process.env.OIDC_CLIENT_ID || 'test_client';
-
-  // Verifica se já existe para não duplicar
-  const exists = await prisma.client.findUnique({
-    where: { clientId },
+  // Seed do cliente de teste (OIDC Debugger)
+  // NOTA: As variáveis de ambiente OIDC_CLIENT_* são usadas apenas aqui no seed
+  // para criar o cliente no banco. O servidor carrega todos os clientes dinamicamente
+  // do banco em src/index.ts.
+  const testClientId = process.env.OIDC_CLIENT_ID || 'test_client';
+  const testExists = await prisma.client.findUnique({
+    where: { clientId: testClientId },
   });
 
-  if (!exists) {
+  if (!testExists) {
     await prisma.client.create({
       data: {
-        clientId: clientId,
+        clientId: testClientId,
         clientSecret: process.env.OIDC_CLIENT_SECRET || 'test_secret',
         name: 'OIDC Debugger Client',
         redirectUris: (process.env.OIDC_REDIRECT_URIS || 'https://oidcdebugger.com/debug').split(','),
@@ -36,6 +38,33 @@ async function main() {
     console.log('Cliente de teste inserido com sucesso!');
   } else {
     console.log('Cliente de teste já existe.');
+  }
+
+  // Seed do cliente ux-auditor
+  // NOTA: As variáveis de ambiente JANUS_* são usadas apenas aqui no seed
+  // para criar o cliente no banco. O servidor carrega todos os clientes dinamicamente
+  // do banco em src/index.ts.
+  const auditorClientId = process.env.JANUS_CLIENT_ID || 'ux-auditor';
+  const baseDomain = process.env.JANUS_BASE_DOMAIN || 'dashboard.seudominio.com';
+  const dashboardExists = await prisma.client.findUnique({
+    where: { clientId: auditorClientId },
+  });
+
+  if (!dashboardExists) {
+    await prisma.client.create({
+      data: {
+        clientId: auditorClientId,
+        clientSecret: process.env.JANUS_CLIENT_SECRET || 'janus_dashboard_secret',
+        name: 'UX Auditor',
+        redirectUris: [`https://${baseDomain}/api/auth/callback/janus`],
+        grantTypes: ['authorization_code', 'refresh_token'],
+        responseTypes: ['code'],
+        scope: 'openid profile email'
+      }
+    });
+    console.log('Cliente ux-auditor inserido com sucesso!');
+  } else {
+    console.log('Cliente ux-auditor já existe.');
   }
 }
 

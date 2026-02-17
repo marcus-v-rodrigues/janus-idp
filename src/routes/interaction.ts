@@ -34,6 +34,28 @@ export default function interactionRoutes(oidc: Provider): Router {
           });
         }
         case 'consent': {
+          // Aprovação automática se o mesmo usuário já estiver logado
+          // Verifica se existe uma sessão com accountId
+          if (session?.accountId) {
+            // Aprova automaticamente o consentimento para MVP
+            const consentResult: any = {
+              consent: {},
+            };
+
+            // Adiciona escopos se presentes
+            if (params.scope) {
+              const scopes = (params.scope as string).split(' ');
+              const oidcScopes = scopes.filter((s) => ['openid', 'profile', 'email'].includes(s));
+              if (oidcScopes.length > 0) {
+                consentResult.consent.scope = oidcScopes;
+              }
+            }
+
+            // Finaliza a interação com aprovação automática
+            return oidc.interactionFinished(req, res, consentResult, { mergeWithLastSubmission: false });
+          }
+
+          // Caso contrário, mostra a tela de consentimento
           return res.render('interaction/consent', {
             uid,
             client,
@@ -66,7 +88,7 @@ export default function interactionRoutes(oidc: Provider): Router {
 
       const { email, password } = req.body;
 
-      // Validação básica
+      // Validação básica dos campos
       if (!email || !password) {
         return res.render('interaction/login', {
           uid,
@@ -78,7 +100,7 @@ export default function interactionRoutes(oidc: Provider): Router {
         });
       }
 
-      // Busca o usuário no banco de dados
+      // Busca o usuário no banco de dados pelo email
       const user = await prisma.user.findUnique({
         where: { email },
       });
@@ -94,7 +116,7 @@ export default function interactionRoutes(oidc: Provider): Router {
         });
       }
 
-      // Verifica a senha
+      // Verifica se a senha está correta usando bcrypt
       const isValidPassword = await bcrypt.compare(password, user.passwordHash);
       if (!isValidPassword) {
         return res.render('interaction/login', {
@@ -119,7 +141,7 @@ export default function interactionRoutes(oidc: Provider): Router {
         },
       };
 
-      // Completa a interação
+      // Finaliza a interação com sucesso
       await oidc.interactionFinished(req, res, result, { mergeWithLastSubmission: false });
     } catch (err) {
       next(err);
@@ -163,7 +185,7 @@ export default function interactionRoutes(oidc: Provider): Router {
         }
       }
 
-      // Completa a interação
+      // Finaliza a interação com sucesso
       await oidc.interactionFinished(req, res, consentResult, { mergeWithLastSubmission: false });
     } catch (err) {
       next(err);

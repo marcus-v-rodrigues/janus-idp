@@ -1,35 +1,64 @@
 version: '3.8'
 
 services:
-  db:
-    image: postgres:16-alpine
-    container_name: idp_db
+  janus-db:
+    image: postgres:15-alpine
+    container_name: janus_db
     restart: always
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_USER: ${POSTGRES_USER:-idp_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_DB: ${POSTGRES_DB:-idp_db}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - janus_network
 
-  app:
-    build: .
-    container_name: idp_app
+  janus-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: janus_service
     restart: always
     ports:
       - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-idp_admin}:${POSTGRES_PASSWORD}@janus-db:5432/${POSTGRES_DB:-idp_db}?schema=public
+      ISSUER_URL: ${ISSUER_URL:-http://localhost:3000/oidc}
+      JANUS_CLIENT_ID: ${JANUS_CLIENT_ID:-ux-auditor}
+      JANUS_CLIENT_SECRET: ${JANUS_CLIENT_SECRET}
+      JANUS_BASE_DOMAIN: ${JANUS_BASE_DOMAIN:-dashboard.seudominio.com}
+      COOKIE_KEYS: ${COOKIE_KEYS}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_NAME: ${ADMIN_NAME}
     env_file:
       - .env
     depends_on:
-      db:
+      janus-db:
         condition: service_healthy
+    networks:
+      - janus_network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  janus_network:
+    driver: bridge
 
 volumes:
   postgres_data:

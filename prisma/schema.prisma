@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -14,11 +15,29 @@ model User {
   emailVerified Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  accounts Account[]
+}
+
+model Account {
+  id         String   @id @default(uuid())
+  userId     String
+  type       String   @default("oauth") // Útil para diferenciar credenciais vs oauth
+  provider   String   @default("local")
+  providerId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Garante que o ID é único APENAS dentro do mesmo provider
+  @@unique([provider, providerId])
+  @@index([userId])
 }
 
 model OidcPayload {
   id         String    @id
-  type       String
+  type       String    // Session, AccessToken, RefreshToken, etc.
   payload    Json
   grantId    String?
   userCode   String?   @unique
@@ -30,17 +49,21 @@ model OidcPayload {
 
   @@index([type])
   @@index([grantId])
+  @@index([uid])
+  // Índice para facilitar a deleção de tokens expirados
+  @@index([expiresAt]) 
 }
 
 model Client {
-  id            String   @id @default(uuid())
-  clientId      String   @unique
-  clientSecret  String
-  name          String?  // Nome amigável (ex: 'Meu App CRM')
-  redirectUris  String[] // Postgres suporta arrays nativamente
-  grantTypes    String[] @default(["authorization_code", "refresh_token"])
-  responseTypes String[] @default(["code"])
-  scope         String?  @default("openid profile email")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                      String   @id @default(uuid())
+  clientId                String   @unique
+  clientSecret            String
+  name                    String?  // Nome amigável (ex: 'Meu App CRM')
+  redirectUris            String[]
+  postLogoutRedirectUris  String[] // Novo campo recomendado
+  grantTypes              String[] @default(["authorization_code", "refresh_token"])
+  responseTypes           String[] @default(["code"])
+  scope                   String?  @default("openid profile email")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 }

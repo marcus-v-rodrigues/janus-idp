@@ -48,6 +48,7 @@ async function seedAdminUser(): Promise<void> {
       passwordHash: passwordHash,
       name: adminName,
       emailVerified: true,
+      role: 'ADMIN',
     },
   });
 

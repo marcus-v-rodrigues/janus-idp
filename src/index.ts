@@ -61,12 +61,14 @@ async function startServer() {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'"],
+        // Adicionado 'unsafe-inline' para o Tailwind injetar os estilos e cdn.tailwindcss.com para o script
+        styleSrc: ["'self'", "'unsafe-inline'"], 
+        scriptSrc: ["'self'", "cdn.tailwindcss.com", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'"], // Opcional: permite conexões locais
       },
     },
-  }));
+  }))
 
   // Configuração do Express
   app.use(express.urlencoded({ extended: true }));

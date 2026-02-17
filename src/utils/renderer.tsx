@@ -39,6 +39,13 @@ export function renderView<T extends Record<string, any>>(
   <title>${escapeHtml(title)}</title>
   <meta name="description" content="${escapeHtml(description)}">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {},
+      },
+    }
+  </script>
   ${customHead}
 </head>
 <body>

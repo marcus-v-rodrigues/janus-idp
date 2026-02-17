@@ -84,10 +84,6 @@ async function startServer() {
     },
   }));
 
-  // Configuração do EJS como view engine (legado, mantido para visualizações de consentimento/erro)
-  app.set('view engine', 'ejs');
-  app.set('views', './views');
-
   // Arquivos estáticos
   app.use(express.static('./public'));
 

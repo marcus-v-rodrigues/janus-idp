@@ -4,6 +4,8 @@ import { prisma } from '../adapter';
 import * as bcrypt from 'bcryptjs';
 import { renderView } from '../utils/renderer';
 import { Login } from '../views/oidc/Login';
+import { Consent } from '../views/oidc/Consent';
+import { Error as ErrorView } from '../views/oidc/Error';
 
 const router = Router();
 
@@ -42,6 +44,10 @@ export default function interactionRoutes(oidc: Provider): Router {
           }, { title: 'Sign in' });
         }
         case 'consent': {
+          if (!client) {
+            return res.status(400).send('Client not found');
+          }
+
           // Aprovação automática se o mesmo usuário já estiver logado
           // Verifica se existe uma sessão com accountId
           if (session?.accountId) {
@@ -63,22 +69,24 @@ export default function interactionRoutes(oidc: Provider): Router {
             return oidc.interactionFinished(req, res, consentResult, { mergeWithLastSubmission: false });
           }
 
-          // Caso contrário, mostra a tela de consentimento
-          return res.render('interaction/consent', {
+          // Caso contrário, mostra a tela de consentimento usando React
+          return renderView(res, Consent, {
             uid,
-            client,
+            client: {
+              clientId: client.clientId,
+              name: (client as any).name || null,
+              logoUri: (client as any).logoUri || null,
+              brandColor: (client as any).brandColor || null,
+            },
             params,
-            title: 'Authorize',
-            details: prompt.details,
-            session,
             flash: undefined,
-          });
+          }, { title: 'Authorize' });
         }
         default: {
-          return res.status(400).render('interaction/error', {
+          return renderView(res, ErrorView, {
             error: 'Unknown prompt',
             message: `Unknown prompt: ${prompt.name}`,
-          });
+          }, { title: 'Error' });
         }
       }
     } catch (err) {

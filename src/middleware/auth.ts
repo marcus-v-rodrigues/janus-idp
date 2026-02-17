@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../adapter';
+import '../types/express';
 
 /**
  * Middleware para garantir que o usuário tenha a função ADMIN.
@@ -57,21 +58,4 @@ export async function ensureNotAdmin(
   }
 
   next();
-}
-
-// Estende o tipo Express Request para incluir adminUser
-declare global {
-  namespace Express {
-    interface Request {
-      adminUser?: {
-        id: string;
-        role: string;
-        email: string;
-        name: string | null;
-      };
-      session?: {
-        adminUserId?: string;
-      };
-    }
-  }
 }

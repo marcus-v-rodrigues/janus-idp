@@ -3,6 +3,7 @@ import { prisma } from '../adapter';
 import * as bcrypt from 'bcryptjs';
 import { ensureAdmin, ensureNotAdmin } from '../middleware/auth';
 import { renderView } from '../utils/renderer';
+import '../types/express';
 
 // Importa as visualizações de admin
 import { Dashboard } from '../views/admin/Dashboard';
@@ -121,7 +122,7 @@ router.get('/clients/new', ensureAdmin, (req: Request, res: Response) => {
 router.get('/clients/:id/edit', ensureAdmin, async (req: Request, res: Response) => {
   try {
     const client = await prisma.client.findUnique({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
     });
 
     if (!client) {
@@ -186,7 +187,7 @@ router.post('/clients', ensureAdmin, async (req: Request, res: Response) => {
 router.post('/clients/:id/delete', ensureAdmin, async (req: Request, res: Response) => {
   try {
     await prisma.client.delete({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
     });
     res.redirect('/admin/clients');
   } catch (error) {
@@ -250,7 +251,7 @@ router.post('/users/:id/reset-password', ensureAdmin, async (req: Request, res: 
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await prisma.user.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: { passwordHash },
     });
 
@@ -267,7 +268,7 @@ router.post('/users/:id/reset-password', ensureAdmin, async (req: Request, res: 
 router.post('/users/:id/toggle-role', ensureAdmin, async (req: Request, res: Response) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       select: { role: true },
     });
 
@@ -277,7 +278,7 @@ router.post('/users/:id/toggle-role', ensureAdmin, async (req: Request, res: Res
 
     const newRole = user.role === 'ADMIN' ? 'USER' : 'ADMIN';
     await prisma.user.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: { role: newRole },
     });
 

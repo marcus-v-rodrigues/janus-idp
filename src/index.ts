@@ -3,6 +3,8 @@ import express from 'express';
 import * as dotenv from 'dotenv';
 import helmet from 'helmet';
 import { PrismaAdapter, prisma } from './adapter';
+import interactionRoutes from './routes/interaction';
+import { findAccount } from './services/account';
 
 dotenv.config();
 
@@ -33,10 +35,16 @@ async function startServer() {
       required: () => true,
     },
     features: {
-      devInteractions: { enabled: true },
+      devInteractions: { enabled: false },
       introspection: { enabled: true },
       revocation: { enabled: true },
     },
+    interactions: {
+      url(ctx, interaction) {
+        return `/interaction/${interaction.uid}`;
+      },
+    },
+    findAccount: findAccount,
     jwks: {
       keys: [],
     },
@@ -47,11 +55,32 @@ async function startServer() {
   /**
    * Configuração de Segurança com Helmet.
    */
-  app.use(helmet());
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+      },
+    },
+  }));
+
+  // Configuração do Express
   app.use(express.urlencoded({ extended: true }));
   app.use(express.json());
 
+  // Configuração do EJS como view engine
+  app.set('view engine', 'ejs');
+  app.set('views', './views');
+
+  // Arquivos estáticos
+  app.use(express.static('./public'));
+
   const oidc = new Provider(issuer, configuration);
+
+  // Rotas de interação (login e consentimento)
+  app.use(interactionRoutes(oidc));
 
   // Rota principal do OIDC montada no path /oidc
   app.use('/oidc', oidc.callback());

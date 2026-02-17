@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> - Janus IdP</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="consent-card">
+      <div class="logo">
+        <h1>Janus IdP</h1>
+        <p class="subtitle">Identity Provider</p>
+      </div>
+
+      <% if (flash) { %>
+        <div class="alert alert-error">
+          <%= flash %>
+        </div>
+      <% } %>
+
+      <div class="client-info">
+        <h2>Authorization Request</h2>
+        <p>
+          <strong>Application:</strong> <%= client?.name || client?.clientId || 'Unknown Application' %>
+        </p>
+        <p class="client-description">
+          This application is requesting access to your account.
+        </p>
+      </div>
+
+      <div class="scopes-section">
+        <h3>Permissions Requested</h3>
+        <p class="scopes-description">
+          The application is requesting the following permissions:
+        </p>
+
+        <div class="scopes-list">
+          <% if (params.scope) { %>
+            <% const scopes = params.scope.split(' '); %>
+            <% const scopeDescriptions = {
+              'openid': 'Sign you in using your Janus IdP account',
+              'profile': 'Access your profile information (name)',
+              'email': 'Access your email address'
+            }; %>
+            <% scopes.forEach(function(scope) { %>
+              <% if (scopeDescriptions[scope]) { %>
+                <div class="scope-item">
+                  <div class="scope-icon">🔒</div>
+                  <div class="scope-content">
+                    <strong><%= scope %></strong>
+                    <p><%= scopeDescriptions[scope] %></p>
+                  </div>
+                </div>
+              <% } %>
+            <% }); %>
+          <% } else { %>
+            <p>No specific permissions requested.</p>
+          <% } %>
+        </div>
+      </div>
+
+      <form method="post" action="/interaction/<%= uid %>/confirm" class="consent-form">
+        <input type="hidden" name="consent" value="true">
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Authorize</button>
+          <button type="button" class="btn btn-secondary" onclick="abortInteraction()">Cancel</button>
+        </div>
+      </form>
+
+      <div class="footer">
+        <p>
+          By authorizing, you allow this application to access the information listed above.
+          You can revoke this access at any time.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function abortInteraction() {
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/interaction/<%= uid %>/abort';
+      document.body.appendChild(form);
+      form.submit();
+    }
+  </script>
+</body>
+</html>

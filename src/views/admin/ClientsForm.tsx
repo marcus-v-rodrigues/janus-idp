@@ -54,34 +54,28 @@ export const ClientsForm: React.FC<ClientsFormProps> = ({ client, error, sidebar
             required
           />
 
-          <Input
-            label="Client Secret"
-            type="text"
-            name="clientSecret"
-            defaultValue={client?.clientSecret || ''}
-            placeholder="Enter a secure secret"
-            required
-          />
-
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Generate Random Secret
+            <label htmlFor="clientSecret" className="block text-sm font-medium text-gray-700 mb-1">
+              Client Secret
             </label>
-            <button
-              type="button"
-              onClick={() => {
-                const input = document.querySelector('input[name="clientSecret"]') as HTMLInputElement;
-                if (input) {
-                  const randomSecret = Array.from(crypto.getRandomValues(new Uint8Array(32)))
-                    .map(b => b.toString(16).padStart(2, '0'))
-                    .join('');
-                  input.value = randomSecret;
-                }
-              }}
-              className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-            >
-              Generate Secret
-            </button>
+            <div className="flex gap-2">
+              <input
+                id="clientSecret"
+                type="text"
+                name="clientSecret"
+                defaultValue={client?.clientSecret || ''}
+                placeholder="Enter a secure secret"
+                required
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <button
+                type="button"
+                id="generateSecretBtn"
+                className="px-4 py-2 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors"
+              >
+                Generate
+              </button>
+            </div>
           </div>
 
           <Input
@@ -156,6 +150,31 @@ export const ClientsForm: React.FC<ClientsFormProps> = ({ client, error, sidebar
           </div>
         </form>
       </Card>
+      <script dangerouslySetInnerHTML={{
+        __html: `
+          (function() {
+            const generateBtn = document.getElementById('generateSecretBtn');
+            if (generateBtn) {
+              generateBtn.addEventListener('click', async function() {
+                try {
+                  const response = await fetch('/admin/clients/generate-secret');
+                  if (!response.ok) {
+                    throw new Error('Failed to generate secret');
+                  }
+                  const data = await response.json();
+                  const input = document.getElementById('clientSecret');
+                  if (input && data.secret) {
+                    input.value = data.secret;
+                  }
+                } catch (error) {
+                  console.error('Error generating secret:', error);
+                  alert('Failed to generate client secret. Please try again.');
+                }
+              });
+            }
+          })();
+        `
+      }} />
     </Layout>
   );
 };

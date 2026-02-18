@@ -196,6 +196,20 @@ router.post('/clients/:id/delete', ensureAdmin, async (req: Request, res: Respon
 });
 
 /**
+ * GET /admin/clients/generate-secret - Gerar um novo client secret no servidor
+ */
+router.get('/clients/generate-secret', ensureAdmin, async (req: Request, res: Response) => {
+  try {
+    const crypto = await import('crypto');
+    const secret = crypto.randomBytes(32).toString('hex');
+    res.json({ secret });
+  } catch (error) {
+    console.error('Erro ao gerar client secret:', error);
+    res.status(500).json({ error: 'Erro ao gerar client secret' });
+  }
+});
+
+/**
  * GET /admin/users - Lista de usuários
  */
 router.get('/users', ensureAdmin, async (req: Request, res: Response) => {

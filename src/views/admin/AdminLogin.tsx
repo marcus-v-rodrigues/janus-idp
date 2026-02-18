@@ -10,7 +10,7 @@ interface AdminLoginProps {
 
 export const AdminLogin: React.FC<AdminLoginProps> = ({ error }) => {
   return (
-    <Layout variant="admin">
+    <Layout variant="auth">
       <Card>
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Admin Portal</h1>

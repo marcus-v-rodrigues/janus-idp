@@ -31,8 +31,11 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Prisma (Keep schema, ignore migrations if you want a clean start, but usually migrations are kept. 
-# Here I will only ignore the environment and temporary files)
+# Prisma (Mantém schema, ignora migrações se quiser um começo limpo, mas geralmente migrações são mantidas.
+# Aqui vou ignorar apenas os arquivos de ambiente e temporários)
 *.db
 *.db-journal
 node_modules/.prisma
+
+# Chaves RSA (geradas automaticamente, não devem ser commitadas)
+keys/

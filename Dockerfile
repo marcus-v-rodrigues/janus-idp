@@ -64,6 +64,9 @@ COPY --from=builder /app/tsconfig.json ./tsconfig.json
 # Traz o cliente Prisma gerado (o motor do banco) do builder para a produção
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
+# Cria diretório para chaves RSA com permissões adequadas
+RUN mkdir -p /app/keys && chown -R nodejs:nodejs /app/keys
+
 # Cria script de startup que roda migrações antes de iniciar
 RUN echo '#!/bin/sh\n\
 set -e\n\

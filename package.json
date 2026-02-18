@@ -12,6 +12,7 @@
     "prisma:seed": "dotenv -e .env -- prisma db seed",
     "prisma:studio": "dotenv -e .env -- prisma studio",
     "prisma:reset": "dotenv -e .env -- prisma migrate reset",
+    "generate-keys": "ts-node scripts/generate-keys.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

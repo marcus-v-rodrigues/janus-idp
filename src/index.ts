@@ -7,6 +7,7 @@ import { PrismaAdapter, prisma } from './adapter';
 import interactionRoutes from './routes/interaction';
 import adminRoutes from './routes/admin';
 import { findAccount } from './services/account';
+import { getPemKeys } from './utils/keys';
 
 dotenv.config();
 
@@ -26,6 +27,9 @@ async function startServer() {
     response_types: c.responseTypes,
     scope: c.scope || undefined,
   }));
+
+  // Gera ou carrega chaves RSA para assinatura RS256
+  const jwkKey = getPemKeys();
 
   const configuration: Configuration = {
     adapter: PrismaAdapter,
@@ -48,7 +52,7 @@ async function startServer() {
     },
     findAccount: findAccount,
     jwks: {
-      keys: [],
+      keys: [jwkKey],
     },
   };
 
@@ -103,6 +107,7 @@ async function startServer() {
   app.listen(port, () => {
     console.log(`\n🚀 Janus IdP está online!`);
     console.log(`🌐 OpenID Configuration: ${issuer}/.well-known/openid-configuration`);
+    console.log(`🔑 JWKS Endpoint: ${issuer}/jwks`);
     console.log(`📊 Clientes carregados do banco: ${clientsConfig.length}`);
     clientsConfig.forEach(c => console.log(`   - ${c.client_id}`));
     console.log(`\n🔐 Admin Portal: http://localhost:${port}/admin`);

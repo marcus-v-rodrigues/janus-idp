@@ -47,6 +47,9 @@ services:
     depends_on:
       janus-db:
         condition: service_healthy
+    volumes:
+      # Monta volume para persistir chaves RSA entre reinicializações do container
+      - rsa_keys:/app/keys
     networks:
       - janus_network
     healthcheck:
@@ -62,3 +65,4 @@ networks:
 
 volumes:
   postgres_data:
+  rsa_keys:

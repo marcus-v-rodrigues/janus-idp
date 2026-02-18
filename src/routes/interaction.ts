@@ -41,7 +41,11 @@ export default function interactionRoutes(oidc: Provider): Router {
             },
             params,
             flash: undefined,
-          }, { title: 'Sign in' });
+          }, { 
+            title: 'Sign in',
+            componentName: 'Login',
+            enableHydration: true 
+          });
         }
         case 'consent': {
           if (!client) {
@@ -80,13 +84,21 @@ export default function interactionRoutes(oidc: Provider): Router {
             },
             params,
             flash: undefined,
-          }, { title: 'Authorize' });
+          }, { 
+            title: 'Authorize',
+            componentName: 'Consent',
+            enableHydration: true 
+          });
         }
         default: {
           return renderView(res, ErrorView, {
             error: 'Unknown prompt',
             message: `Unknown prompt: ${prompt.name}`,
-          }, { title: 'Error' });
+          }, { 
+            title: 'Error',
+            componentName: 'Error',
+            enableHydration: true 
+          });
         }
       }
     } catch (err) {

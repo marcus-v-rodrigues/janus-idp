@@ -25,6 +25,34 @@ interface ClientsFormProps {
 export const ClientsForm: React.FC<ClientsFormProps> = ({ client, error, sidebarLinks }) => {
   const isEdit = client?.id !== null;
   const title = isEdit ? 'Edit Client' : 'New Client';
+  const [clientSecret, setClientSecret] = React.useState(client?.clientSecret || '');
+  const [isGenerating, setIsGenerating] = React.useState(false);
+
+  // Sincroniza o estado com alterações de prop (importante para hydratation)
+  React.useEffect(() => {
+    if (client?.clientSecret) {
+      setClientSecret(client.clientSecret);
+    }
+  }, [client?.clientSecret]);
+
+  const handleGenerateSecret = async () => {
+    setIsGenerating(true);
+    try {
+      const response = await fetch('/admin/clients/generate-secret');
+      if (!response.ok) {
+        throw new Error('Failed to generate secret');
+      }
+      const data = await response.json();
+      if (data.secret) {
+        setClientSecret(data.secret);
+      }
+    } catch (error) {
+      console.error('Error generating secret:', error);
+      alert('Failed to generate client secret. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   return (
     <Layout variant="admin" title={title} sidebarLinks={sidebarLinks}>
@@ -63,17 +91,19 @@ export const ClientsForm: React.FC<ClientsFormProps> = ({ client, error, sidebar
                 id="clientSecret"
                 type="text"
                 name="clientSecret"
-                defaultValue={client?.clientSecret || ''}
+                value={clientSecret}
+                onChange={(e) => setClientSecret(e.target.value)}
                 placeholder="Enter a secure secret"
                 required
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
               <button
                 type="button"
-                id="generateSecretBtn"
-                className="px-4 py-2 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors"
+                onClick={handleGenerateSecret}
+                disabled={isGenerating}
+                className="px-4 py-2 text-sm bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white rounded-md transition-colors"
               >
-                Generate
+                {isGenerating ? 'Generating...' : 'Generate'}
               </button>
             </div>
           </div>
@@ -150,31 +180,6 @@ export const ClientsForm: React.FC<ClientsFormProps> = ({ client, error, sidebar
           </div>
         </form>
       </Card>
-      <script dangerouslySetInnerHTML={{
-        __html: `
-          (function() {
-            const generateBtn = document.getElementById('generateSecretBtn');
-            if (generateBtn) {
-              generateBtn.addEventListener('click', async function() {
-                try {
-                  const response = await fetch('/admin/clients/generate-secret');
-                  if (!response.ok) {
-                    throw new Error('Failed to generate secret');
-                  }
-                  const data = await response.json();
-                  const input = document.getElementById('clientSecret');
-                  if (input && data.secret) {
-                    input.value = data.secret;
-                  }
-                } catch (error) {
-                  console.error('Error generating secret:', error);
-                  alert('Failed to generate client secret. Please try again.');
-                }
-              });
-            }
-          })();
-        `
-      }} />
     </Layout>
   );
 };

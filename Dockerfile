@@ -57,6 +57,8 @@ COPY --from=builder /app/node_modules/typescript ./node_modules/typescript
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
+# Copia o diretório public com os assets client-side (incluindo o bundle de hidratação)
+COPY --from=builder /app/public ./public
 
 # Copia arquivos TypeScript e configs para poder rodar ts-node em produção
 COPY --from=builder /app/tsconfig.json ./tsconfig.json

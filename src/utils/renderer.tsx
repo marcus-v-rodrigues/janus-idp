@@ -6,6 +6,8 @@ interface RenderViewOptions {
   title?: string;
   description?: string;
   customHead?: string;
+  componentName?: string;
+  enableHydration?: boolean;
 }
 
 /**
@@ -23,12 +25,28 @@ export function renderView<T extends Record<string, any>>(
   props: T,
   options: RenderViewOptions = {}
 ): void {
-  const { title = 'Janus IDP', description = 'OpenID Connect Provider', customHead = '' } = options;
+  const { 
+    title = 'Janus IDP', 
+    description = 'OpenID Connect Provider', 
+    customHead = '',
+    componentName = '',
+    enableHydration = false
+  } = options;
 
-  // Renderiza o componente React para marcação estática
-  const componentHtml = ReactDOMServer.renderToStaticMarkup(
-    React.createElement(Component, props)
-  );
+  // Renderiza o componente React para marcação estática ou com hidratação
+  const componentHtml = enableHydration
+    ? ReactDOMServer.renderToString(React.createElement(Component, props))
+    : ReactDOMServer.renderToStaticMarkup(React.createElement(Component, props));
+
+  // Prepara os dados de hidratação
+  const hydrationScript = enableHydration && componentName
+    ? `<script id="__HYDRATION_DATA__" type="application/json">${JSON.stringify({ componentName, props }).replace(/</g, '\\u003c')}</script>`
+    : '';
+
+  // Prepara o script do cliente para hidratação
+  const clientScript = enableHydration
+    ? `<script src="/dist/client.js"></script>`
+    : '';
 
   // Constrói o documento HTML completo
   const html = `<!DOCTYPE html>
@@ -49,7 +67,9 @@ export function renderView<T extends Record<string, any>>(
   ${customHead}
 </head>
 <body>
-  ${componentHtml}
+  ${hydrationScript}
+  <div id="root">${componentHtml}</div>
+  ${clientScript}
 </body>
 </html>`;
 

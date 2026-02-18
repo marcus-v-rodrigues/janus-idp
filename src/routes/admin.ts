@@ -17,7 +17,11 @@ const router = Router();
  * GET /admin/login - Página de login do administrador
  */
 router.get('/login', ensureNotAdmin, (req: Request, res: Response) => {
-  renderView(res, AdminLogin, { error: null }, { title: 'Admin Login' });
+  renderView(res, AdminLogin, { error: null }, { 
+    title: 'Admin Login',
+    componentName: 'AdminLogin',
+    enableHydration: true 
+  });
 });
 
 /**
@@ -78,7 +82,11 @@ router.get('/', ensureAdmin, async (req: Request, res: Response) => {
     renderView(res, Dashboard, {
       stats: { totalUsers, totalClients, activeAdmins },
       sidebarLinks: getSidebarLinks('dashboard'),
-    }, { title: 'Dashboard' });
+    }, { 
+      title: 'Dashboard',
+      componentName: 'Dashboard',
+      enableHydration: true 
+    });
   } catch (error) {
     console.error('Erro do dashboard:', error);
     res.status(500).send('Erro ao carregar dashboard');
@@ -97,7 +105,11 @@ router.get('/clients', ensureAdmin, async (req: Request, res: Response) => {
     renderView(res, ClientsList, {
       clients,
       sidebarLinks: getSidebarLinks('clients'),
-    }, { title: 'Clients' });
+    }, { 
+      title: 'Clients',
+      componentName: 'ClientsList',
+      enableHydration: true 
+    });
   } catch (error) {
     console.error('Erro na lista de clientes:', error);
     res.status(500).send('Erro ao carregar clientes');
@@ -112,7 +124,11 @@ router.get('/clients/new', ensureAdmin, (req: Request, res: Response) => {
     client: null,
     error: null,
     sidebarLinks: getSidebarLinks('clients'),
-  }, { title: 'New Client' });
+  }, { 
+    title: 'New Client',
+    componentName: 'ClientsForm',
+    enableHydration: true 
+  });
 });
 
 /**
@@ -132,7 +148,11 @@ router.get('/clients/:id/edit', ensureAdmin, async (req: Request, res: Response)
       client,
       error: null,
       sidebarLinks: getSidebarLinks('clients'),
-    }, { title: 'Edit Client' });
+    }, { 
+      title: 'Edit Client',
+      componentName: 'ClientsForm',
+      enableHydration: true 
+    });
   } catch (error) {
     console.error('Erro na edição do cliente:', error);
     res.redirect('/admin/clients');
@@ -229,7 +249,11 @@ router.get('/users', ensureAdmin, async (req: Request, res: Response) => {
     renderView(res, UsersList, {
       users,
       sidebarLinks: getSidebarLinks('users'),
-    }, { title: 'Users' });
+    }, { 
+      title: 'Users',
+      componentName: 'UsersList',
+      enableHydration: true 
+    });
   } catch (error) {
     console.error('Erro na lista de usuários:', error);
     res.status(500).send('Erro ao carregar usuários');

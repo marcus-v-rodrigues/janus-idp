@@ -56,11 +56,14 @@ export const UsersList: React.FC<UsersListProps> = ({ users, error, sidebarLinks
     {
       key: 'createdAt',
       header: 'Created',
-      render: (value) => (
-        <span className="text-sm text-gray-600">
-          {new Date(value).toLocaleDateString()}
-        </span>
-      ),
+      render: (value) => {
+        const date = new Date(value);
+        return (
+          <span className="text-sm text-gray-600">
+            {date.getFullYear()}-{String(date.getMonth() + 1).padStart(2, '0')}-{String(date.getDate()).padStart(2, '0')}
+          </span>
+        );
+      },
     },
     {
       key: 'actions',

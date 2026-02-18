@@ -13,13 +13,14 @@ export const Input: React.FC<InputProps> = ({
   className = '',
   ...props
 }) => {
-  const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
-  
+  const generatedId = React.useId();
+  const inputId = id || generatedId;
+
   return (
     <div className="mb-4">
       {label && (
-        <label 
-          htmlFor={inputId} 
+        <label
+          htmlFor={inputId}
           className="block text-sm font-medium text-gray-700 mb-1"
         >
           {label}

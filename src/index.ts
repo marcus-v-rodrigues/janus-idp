@@ -18,6 +18,15 @@ async function startServer() {
   // 1. Busca todos os clientes cadastrados no banco
   const dbClients = await prisma.client.findMany();
 
+  // Extrai todos os escopos únicos definidos nos clientes no banco
+  // Isso garante que se criar um cliente novo com 'read:photos', o servidor aceitará
+  const supportedScopes = new Set(['openid']); // openid é sempre obrigatório
+  dbClients.forEach(client => {
+    if (client.scope) {
+      client.scope.split(' ').forEach(s => supportedScopes.add(s));
+    }
+  });
+
   // 2. Mapeia do formato do Prisma para o formato do oidc-provider
   const clientsConfig = dbClients.map(c => ({
     client_id: c.clientId,
@@ -34,6 +43,8 @@ async function startServer() {
   const configuration: Configuration = {
     adapter: PrismaAdapter,
     clients: clientsConfig as any,
+    // O servidor aceita dinamicamente qualquer escopo que clientes possuam
+    scopes: Array.from(supportedScopes),
     cookies: {
       keys: (process.env.COOKIE_KEYS || 'uma_chave_secreta_para_dev_1,uma_chave_secreta_para_dev_2').split(','),
     },

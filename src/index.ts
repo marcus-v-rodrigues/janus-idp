@@ -12,7 +12,7 @@ import { getPemKeys } from './utils/keys';
 
 dotenv.config();
 
-const port = process.env.PORT || 3000;
+const port = process.env.APP_PORT || 3000;
 const issuer = process.env.ISSUER_URL || `http://localhost:${port}/oidc`;
 
 async function startServer() {

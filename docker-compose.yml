@@ -17,7 +17,7 @@ services:
     env_file:
       - .env
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "5432:${POSTGRES_PORT:-5432}"
     # Verificação de saúde do container PostgreSQL
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -27,7 +27,7 @@ services:
       start_period: 10s
     volumes:
       # Volume nomeado para persistência dos dados do banco
-      - postgres_data:/var/lib/postgresql/data
+      - janus_postgres_data:/var/lib/postgresql/data
     # Conecta à rede externa do ecossistema UX Auditor
     networks:
       - ux_auditor_network
@@ -52,7 +52,7 @@ services:
         condition: service_healthy
     volumes:
       # Volume nomeado para persistir chaves RSA entre reinicializações
-      - rsa_keys:/app/keys
+      - janus_rsa_keys:/app/keys
     # Conecta à rede externa do ecossistema UX Auditor
     networks:
       - ux_auditor_network
@@ -78,5 +78,5 @@ networks:
 # =============================================================================
 # Volumes nomeados para persistência de dados
 volumes:
-  postgres_data:
-  rsa_keys:
+  janus_postgres_data:
+  janus_rsa_keys:

@@ -105,7 +105,7 @@ async function seedClients(): Promise<void> {
         clientId: auditorClientId,
         clientSecret: process.env.UX_CLIENT_SECRET || 'janus_dashboard_secret',
         name: 'UX Auditor',
-        redirectUris: [`http://${baseDomain}/api/auth/callback/janus`],
+        redirectUris: [`${baseDomain}/api/auth/callback/janus`],
         grantTypes: ['authorization_code', 'refresh_token'],
         responseTypes: ['code'],
         scope: 'openid profile email'

@@ -1,16 +1,24 @@
-version: '3.8'
+# =============================================================================
+# Docker Compose - Janus IDP (Identity Provider)
+# =============================================================================
+# Este compose faz parte do ecossistema UX Auditor e utiliza uma rede externa
+# para comunicação entre microsserviços.
+# =============================================================================
 
 services:
+  # ---------------------------------------------------------------------------
+  # Serviço de Banco de Dados PostgreSQL
+  # ---------------------------------------------------------------------------
   janus-db:
     image: postgres:15-alpine
     container_name: janus_db
     restart: always
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-idp_admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-idp_db}
+    # Utiliza arquivo .env para todas as variáveis de ambiente
+    env_file:
+      - .env
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
+    # Verificação de saúde do container PostgreSQL
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -18,42 +26,37 @@ services:
       retries: 10
       start_period: 10s
     volumes:
+      # Volume nomeado para persistência dos dados do banco
       - postgres_data:/var/lib/postgresql/data
     # Conecta à rede externa do ecossistema UX Auditor
     networks:
       - ux_auditor_network
 
+  # ---------------------------------------------------------------------------
+  # Serviço da Aplicação Janus IDP
+  # ---------------------------------------------------------------------------
   janus-service:
+    # Build do diretório atual com Dockerfile
     build:
       context: .
       dockerfile: Dockerfile
-      target: production
     container_name: janus_service
     restart: always
-    ports:
-      - "${PORT:-3000}:3000"
-    environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-idp_admin}:${POSTGRES_PASSWORD}@janus-db:5432/${POSTGRES_DB:-idp_db}?schema=public
-      ISSUER_URL: ${ISSUER_URL:-http://localhost:3000/oidc}
-      UX_CLIENT_ID: ${UX_CLIENT_ID:-ux-auditor}
-      UX_CLIENT_SECRET: ${UX_CLIENT_SECRET}
-      UX_BASE_DOMAIN: ${UX_BASE_DOMAIN:-dashboard.seudominio.com}
-      COOKIE_KEYS: ${COOKIE_KEYS}
-      ADMIN_EMAIL: ${ADMIN_EMAIL}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      ADMIN_NAME: ${ADMIN_NAME}
+    # Utiliza arquivo .env para todas as variáveis de ambiente
     env_file:
       - .env
+    ports:
+      - "3000:3000"
     depends_on:
       janus-db:
         condition: service_healthy
     volumes:
-      # Monta volume para persistir chaves RSA entre reinicializações do container
+      # Volume nomeado para persistir chaves RSA entre reinicializações
       - rsa_keys:/app/keys
     # Conecta à rede externa do ecossistema UX Auditor
     networks:
       - ux_auditor_network
+    # Verificação de saúde da aplicação
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 30s
@@ -61,11 +64,19 @@ services:
       retries: 3
       start_period: 40s
 
+# =============================================================================
+# Redes
+# =============================================================================
 # Rede externa gerenciada pelo ecossistema UX Auditor
+# Esta rede deve ser criada previamente com: docker network create ux_auditor_network
 networks:
   ux_auditor_network:
     external: true
 
+# =============================================================================
+# Volumes
+# =============================================================================
+# Volumes nomeados para persistência de dados
 volumes:
   postgres_data:
   rsa_keys:

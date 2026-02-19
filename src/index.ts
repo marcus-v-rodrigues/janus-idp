@@ -6,6 +6,7 @@ import session from 'express-session';
 import { PrismaAdapter, prisma } from './adapter';
 import interactionRoutes from './routes/interaction';
 import adminRoutes from './routes/admin';
+import apiRoutes from './routes/api';
 import { findAccount } from './services/account';
 import { getPemKeys } from './utils/keys';
 
@@ -111,6 +112,9 @@ async function startServer() {
 
   // Rotas do Portal Administrativo
   app.use('/admin', adminRoutes);
+
+  // Rotas da API para serviços externos
+  app.use('/api', apiRoutes);
 
   // Rota principal do OIDC montada no path /oidc
   app.use('/oidc', oidc.callback());

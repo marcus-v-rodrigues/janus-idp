@@ -27,6 +27,7 @@ export const ClientsForm: React.FC<ClientsFormProps> = ({ client, error, sidebar
   const title = isEdit ? 'Edit Client' : 'New Client';
   const [clientSecret, setClientSecret] = React.useState(client?.clientSecret || '');
   const [isGenerating, setIsGenerating] = React.useState(false);
+  const [brandColor, setBrandColor] = React.useState(client?.brandColor || '#3b82f6');
 
   // Sincroniza o estado com alterações de prop (importante para hydratation)
   React.useEffect(() => {
@@ -34,6 +35,12 @@ export const ClientsForm: React.FC<ClientsFormProps> = ({ client, error, sidebar
       setClientSecret(client.clientSecret);
     }
   }, [client?.clientSecret]);
+
+  React.useEffect(() => {
+    if (client?.brandColor) {
+      setBrandColor(client.brandColor);
+    }
+  }, [client?.brandColor]);
 
   const handleGenerateSecret = async () => {
     setIsGenerating(true);
@@ -163,12 +170,34 @@ export const ClientsForm: React.FC<ClientsFormProps> = ({ client, error, sidebar
             placeholder="https://example.com/logo.png"
           />
 
-          <Input
-            label="Brand Color"
-            type="color"
-            name="brandColor"
-            defaultValue={client?.brandColor || '#3b82f6'}
-          />
+          <div className="mb-4">
+            <label htmlFor="brandColor" className="block text-sm font-medium text-gray-700 mb-1">
+              Brand Color
+            </label>
+            <div className="flex gap-2 items-center">
+              <input
+                id="brandColor"
+                type="color"
+                name="brandColor"
+                value={brandColor}
+                onChange={(e) => setBrandColor(e.target.value)}
+                className="w-16 h-10 border border-gray-300 rounded-md cursor-pointer p-0.5"
+              />
+              <input
+                type="text"
+                value={brandColor}
+                onChange={(e) => setBrandColor(e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 uppercase"
+                placeholder="#3B82F6"
+              />
+              <div
+                className="w-16 h-10 rounded-md border border-gray-300 shadow-sm"
+                style={{ backgroundColor: brandColor }}
+                title="Color preview"
+              />
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Select a color for brand customization</p>
+          </div>
 
           <div className="flex justify-end space-x-3 mt-6">
             <a href="/admin/clients">

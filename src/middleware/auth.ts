@@ -59,3 +59,30 @@ export async function ensureNotAdmin(
 
   next();
 }
+
+/**
+ * Middleware para autenticação de serviços externos via API Key.
+ * Verifica se o header 'X-Service-Key' corresponde à variável de ambiente JANUS_SERVICE_API_KEY.
+ * Usado para permitir que serviços externos (como APIs) criem usuários programaticamente.
+ */
+export function ensureServiceKey(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  const serviceKey = req.headers['x-service-key'];
+  const expectedKey = process.env.JANUS_SERVICE_API_KEY;
+
+  if (!expectedKey) {
+    console.error('JANUS_SERVICE_API_KEY not configured in environment variables');
+    res.status(500).json({ error: 'Service API key not configured' });
+    return;
+  }
+
+  if (!serviceKey || serviceKey !== expectedKey) {
+    res.status(401).json({ error: 'Invalid or missing service key' });
+    return;
+  }
+
+  next();
+}

@@ -69,20 +69,14 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 # Cria diretório para chaves RSA com permissões adequadas
 RUN mkdir -p /app/keys && chown -R nodejs:nodejs /app/keys
 
-# Cria script de startup que roda migrações antes de iniciar
-RUN echo '#!/bin/sh\n\
-set -e\n\
-echo "Running database migrations..."\n\
-npx prisma migrate deploy\n\
-echo "Migrations completed successfully"\n\
-echo "Starting application..."\n\
-exec node dist/index.js\n\
-' > /app/docker-entrypoint.sh && chmod +x /app/docker-entrypoint.sh
+# Copia o script de inicialização que roda migrações e seed antes de iniciar
+COPY --chown=nodejs:nodejs init.sh /app/init.sh
+RUN chmod +x /app/init.sh
 
 # Muda para usuário não-root
 USER nodejs
 
 EXPOSE 3000
 
-# Usa o script de entrypoint que roda migrações antes de iniciar
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+# Usa o script de inicialização que roda migrações e seed antes de iniciar
+ENTRYPOINT ["/app/init.sh"]

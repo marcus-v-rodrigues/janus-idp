@@ -19,8 +19,9 @@ services:
       start_period: 10s
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # Conecta à rede externa do ecossistema UX Auditor
     networks:
-      - janus_network
+      - ux_auditor_network
 
   janus-service:
     build:
@@ -50,8 +51,9 @@ services:
     volumes:
       # Monta volume para persistir chaves RSA entre reinicializações do container
       - rsa_keys:/app/keys
+    # Conecta à rede externa do ecossistema UX Auditor
     networks:
-      - janus_network
+      - ux_auditor_network
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 30s
@@ -59,9 +61,10 @@ services:
       retries: 3
       start_period: 40s
 
+# Rede externa gerenciada pelo ecossistema UX Auditor
 networks:
-  janus_network:
-    driver: bridge
+  ux_auditor_network:
+    external: true
 
 volumes:
   postgres_data:

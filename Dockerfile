@@ -37,8 +37,8 @@ RUN npx tsc prisma/seed.ts --outDir dist/prisma --module commonjs --target es202
 # Stage 3: Production
 FROM node:24.12.0-slim AS production
 
-# Instala dependências necessárias para o Prisma (openssl)
-RUN apt-get update -y && apt-get install -y openssl
+# Instala dependências necessárias para o Prisma (openssl) e o wget para o healthcheck
+RUN apt-get update -y && apt-get install -y openssl wget && rm -rf /var/lib/apt/lists/*
 
 # Cria usuário não-root para segurança
 RUN groupadd -r nodejs && useradd -r -g nodejs nodejs

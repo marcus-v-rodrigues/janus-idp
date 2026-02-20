@@ -64,17 +64,23 @@ Isso irá:
 Para produção, você deve:
 
 1. **Gerar chaves seguras** (use um ambiente seguro ou HSM)
-2. **Definir variáveis de ambiente** com suas chaves no formato PEM:
+2. **Definir variáveis de ambiente** com suas chaves no formato PEM codificadas em Base64:
+
+```bash
+# Gerar chaves e codificar em Base64
+npm run generate-keys
+
+# O script irá exibir as chaves já codificadas em Base64 para copiar para o .env
+# Ou você pode codificar manualmente:
+cat keys/private.pem | base64 -w 0  # Para RSA_PRIVATE_KEY
+cat keys/public.pem | base64 -w 0   # Para RSA_PUBLIC_KEY
+```
 
 ```bash
 # No seu arquivo .env ou ambiente de produção
-RSA_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC...
------END PRIVATE KEY-----"
-
-RSA_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...
------END PUBLIC KEY-----"
+# As chaves devem estar codificadas em Base64
+RSA_PRIVATE_KEY="LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCi4uLgotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0t"
+RSA_PUBLIC_KEY="LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KLi4uCi0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQ=="
 ```
 
 3. **Nunca faça commit das chaves no controle de versão** (o diretório `keys/` está no `.gitignore`)
@@ -163,10 +169,11 @@ O docker-compose.yml também está configurado com um volume `rsa_keys` para per
 
 ### Formato de chave inválido
 
-Certifique-se de que suas chaves PEM estejam formatadas corretamente:
-- Deve incluir `-----BEGIN PRIVATE KEY-----` e `-----END PRIVATE KEY-----`
-- Deve incluir `-----BEGIN PUBLIC KEY-----` e `-----END PUBLIC KEY-----`
-- Use quebras de linha adequadas nas variáveis de ambiente
+Certifique-se de que suas chaves estejam codificadas em Base64:
+- As variáveis de ambiente `RSA_PRIVATE_KEY` e `RSA_PUBLIC_KEY` devem conter chaves PEM codificadas em Base64
+- Para codificar uma chave PEM em Base64: `cat private.pem | base64 -w 0`
+- O sistema decodifica automaticamente as chaves de Base64 para PEM ao carregá-las
+- O formato PEM original deve incluir `-----BEGIN PRIVATE KEY-----` e `-----END PRIVATE KEY-----` (ou `-----BEGIN PUBLIC KEY-----` e `-----END PUBLIC KEY-----`)
 
 ### Endpoint JWKS não respondendo
 

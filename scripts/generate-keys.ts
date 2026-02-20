@@ -37,3 +37,13 @@ console.log(`   - Mantenha a chave privada segura e confidencial\n`);
 // Exibe chave pública para referência
 console.log('📋 Chave Pública (para referência):');
 console.log(publicKey);
+
+// Exibe versões em Base64 para copiar para .env
+const privateKeyBase64 = Buffer.from(privateKey).toString('base64');
+const publicKeyBase64 = Buffer.from(publicKey).toString('base64');
+
+console.log('\n📋 Chaves codificadas em Base64 (para .env):');
+console.log('\n# RSA_PRIVATE_KEY (copie para .env):');
+console.log(`RSA_PRIVATE_KEY="${privateKeyBase64}"`);
+console.log('\n# RSA_PUBLIC_KEY (copie para .env):');
+console.log(`RSA_PUBLIC_KEY="${publicKeyBase64}"`);

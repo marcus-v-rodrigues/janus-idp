@@ -55,10 +55,14 @@ function generateKeyId(jwk: any): string {
  */
 export function getPemKeys() {
   // Verifica se as chaves são fornecidas via variáveis de ambiente
-  const privateKeyPem = process.env.RSA_PRIVATE_KEY;
-  const publicKeyPem = process.env.RSA_PUBLIC_KEY;
+  const privateKeyBase64 = process.env.RSA_PRIVATE_KEY;
+  const publicKeyBase64 = process.env.RSA_PUBLIC_KEY;
 
-  if (privateKeyPem && publicKeyPem) {
+  if (privateKeyBase64 && publicKeyBase64) {
+    // Decodifica as chaves de Base64 para PEM
+    const privateKeyPem = Buffer.from(privateKeyBase64, 'base64').toString('utf-8');
+    const publicKeyPem = Buffer.from(publicKeyBase64, 'base64').toString('utf-8');
+    
     // Converte chave privada para JWK completo
     return pemToJwks(privateKeyPem, true);
   }

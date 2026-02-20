@@ -105,6 +105,11 @@ async function startServer() {
   // Arquivos estáticos
   app.use(express.static('./public'));
 
+  // Healthcheck
+  app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok' });
+  });
+
   const oidc = new Provider(issuer, configuration);
 
   // Rotas de interação (login e consentimento)

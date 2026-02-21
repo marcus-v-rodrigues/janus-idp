@@ -67,7 +67,7 @@ async function seedClients(): Promise<void> {
   // NOTA: As variáveis de ambiente OIDC_CLIENT_* são usadas apenas aqui no seed
   // para criar o cliente no banco. O servidor carrega todos os clientes dinamicamente
   // do banco em src/index.ts.
-  const testClientId = process.env.OIDC_CLIENT_ID || 'test_client';
+  const testClientId = process.env.OIDC_CLIENT_ID || 'test-client';
   const testExists = await prisma.client.findUnique({
     where: { clientId: testClientId },
   });
@@ -76,7 +76,7 @@ async function seedClients(): Promise<void> {
     await prisma.client.create({
       data: {
         clientId: testClientId,
-        clientSecret: process.env.OIDC_CLIENT_SECRET || 'test_secret',
+        clientSecret: process.env.OIDC_CLIENT_SECRET || 'test-secret',
         name: 'OIDC Debugger Client',
         redirectUris: (process.env.OIDC_REDIRECT_URIS || 'https://oidcdebugger.com/debug').split(','),
         grantTypes: ['authorization_code', 'refresh_token'],

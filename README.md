@@ -60,7 +60,7 @@ Após iniciar os containers, o servidor estará disponível em `http://localhost
 **Configurações para o OIDC Debugger:**
 1. **Authorize URI**: `http://localhost:3000/oidc/auth`
 2. **Token URI**: `http://localhost:3000/oidc/token`
-3. **Client ID**: `test_client` (após rodar o seed)
+3. **Client ID**: `test-client` (após rodar o seed)
 4. **Scope**: `openid profile email`
 5. **Redirect URI**: `https://oidcdebugger.com/debug`
 

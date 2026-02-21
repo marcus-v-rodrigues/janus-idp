@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { Provider } from 'oidc-provider';
-import { prisma } from '../adapter';
+import { db } from '../adapter';
+import { schema } from '../db';
+import { eq } from 'drizzle-orm';
 import * as bcrypt from 'bcryptjs';
 import { renderView } from '../utils/renderer';
 import { Login } from '../views/oidc/Login';
@@ -8,6 +10,8 @@ import { Consent } from '../views/oidc/Consent';
 import { Error as ErrorView } from '../views/oidc/Error';
 
 const router = Router();
+
+const { users } = schema;
 
 /**
  * Cria um router Express para lidar com as interações de login e consentimento.
@@ -138,9 +142,8 @@ export default function interactionRoutes(oidc: Provider): Router {
       }
 
       // Busca o usuário no banco de dados pelo email
-      const user = await prisma.user.findUnique({
-        where: { email },
-      });
+      const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      const user = result[0];
 
       if (!user) {
         return renderView(res, Login, {
@@ -163,7 +166,7 @@ export default function interactionRoutes(oidc: Provider): Router {
       }
 
       // Cria o resultado da interação de login
-      const result = {
+      const result2 = {
         login: {
           accountId: user.id,
           // Claims do usuário que serão retornados no token
@@ -175,7 +178,7 @@ export default function interactionRoutes(oidc: Provider): Router {
       };
 
       // Finaliza a interação com sucesso
-      await oidc.interactionFinished(req, res, result, { mergeWithLastSubmission: false });
+      await oidc.interactionFinished(req, res, result2, { mergeWithLastSubmission: false });
     } catch (err) {
       next(err);
     }

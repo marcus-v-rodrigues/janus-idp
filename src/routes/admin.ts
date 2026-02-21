@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { prisma } from '../adapter';
+import { db } from '../adapter';
+import { schema } from '../db';
+import { eq, count, desc } from 'drizzle-orm';
 import * as bcrypt from 'bcryptjs';
 import { ensureAdmin, ensureNotAdmin } from '../middleware/auth';
 import { renderView } from '../utils/renderer';
@@ -12,6 +14,8 @@ import { UsersList } from '../views/admin/UsersList';
 import { AdminLogin } from '../views/admin/AdminLogin';
 
 const router = Router();
+
+const { users, clients } = schema;
 
 /**
  * GET /admin/login - Página de login do administrador
@@ -35,9 +39,8 @@ router.post('/login', ensureNotAdmin, async (req: Request, res: Response) => {
   }
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
+    const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    const user = result[0];
 
     if (!user) {
       return renderView(res, AdminLogin, { error: 'Credenciais inválidas' }, { title: 'Admin Login' });
@@ -75,12 +78,16 @@ router.get('/logout', (req: Request, res: Response) => {
  */
 router.get('/', ensureAdmin, async (req: Request, res: Response) => {
   try {
-    const totalUsers = await prisma.user.count();
-    const totalClients = await prisma.client.count();
-    const activeAdmins = await prisma.user.count({ where: { role: 'ADMIN' } });
+    const [totalUsersResult] = await db.select({ count: count() }).from(users);
+    const [totalClientsResult] = await db.select({ count: count() }).from(clients);
+    const [activeAdminsResult] = await db.select({ count: count() }).from(users).where(eq(users.role, 'ADMIN'));
 
     renderView(res, Dashboard, {
-      stats: { totalUsers, totalClients, activeAdmins },
+      stats: { 
+        totalUsers: totalUsersResult.count, 
+        totalClients: totalClientsResult.count, 
+        activeAdmins: activeAdminsResult.count 
+      },
       sidebarLinks: getSidebarLinks('dashboard'),
     }, { 
       title: 'Dashboard',
@@ -98,12 +105,10 @@ router.get('/', ensureAdmin, async (req: Request, res: Response) => {
  */
 router.get('/clients', ensureAdmin, async (req: Request, res: Response) => {
   try {
-    const clients = await prisma.client.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
+    const allClients = await db.select().from(clients).orderBy(desc(clients.createdAt));
 
     renderView(res, ClientsList, {
-      clients,
+      clients: allClients,
       sidebarLinks: getSidebarLinks('clients'),
     }, { 
       title: 'Clients',
@@ -136,9 +141,8 @@ router.get('/clients/new', ensureAdmin, (req: Request, res: Response) => {
  */
 router.get('/clients/:id/edit', ensureAdmin, async (req: Request, res: Response) => {
   try {
-    const client = await prisma.client.findUnique({
-      where: { id: req.params.id as string },
-    });
+    const result = await db.select().from(clients).where(eq(clients.id, req.params.id as string)).limit(1);
+    const client = result[0];
 
     if (!client) {
       return res.redirect('/admin/clients');
@@ -179,19 +183,17 @@ router.post('/clients', ensureAdmin, async (req: Request, res: Response) => {
 
     if (id) {
       // Atualiza cliente existente
-      await prisma.client.update({
-        where: { id },
-        data,
-      });
+      await db.update(clients).set(data).where(eq(clients.id, id));
     } else {
       // Cria novo cliente
-      await prisma.client.create({ data });
+      await db.insert(clients).values(data);
     }
 
     res.redirect('/admin/clients');
   } catch (error) {
     console.error('Erro ao salvar cliente:', error);
-    const client = id ? await prisma.client.findUnique({ where: { id } }) : null;
+    const result = id ? await db.select().from(clients).where(eq(clients.id, id)).limit(1) : [];
+    const client = result[0] || { ...req.body, id: null };
     renderView(res, ClientsForm, {
       client: client || { ...req.body, id: null },
       error: 'Erro ao salvar cliente. Por favor, verifique sua entrada.',
@@ -205,9 +207,7 @@ router.post('/clients', ensureAdmin, async (req: Request, res: Response) => {
  */
 router.post('/clients/:id/delete', ensureAdmin, async (req: Request, res: Response) => {
   try {
-    await prisma.client.delete({
-      where: { id: req.params.id as string },
-    });
+    await db.delete(clients).where(eq(clients.id, req.params.id as string));
     res.redirect('/admin/clients');
   } catch (error) {
     console.error('Erro ao excluir cliente:', error);
@@ -234,20 +234,17 @@ router.get('/clients/generate-secret', ensureAdmin, async (req: Request, res: Re
  */
 router.get('/users', ensureAdmin, async (req: Request, res: Response) => {
   try {
-    const users = await prisma.user.findMany({
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        emailVerified: true,
-        createdAt: true,
-      },
-    });
+    const allUsers = await db.select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      role: users.role,
+      emailVerified: users.emailVerified,
+      createdAt: users.createdAt,
+    }).from(users).orderBy(desc(users.createdAt));
 
     renderView(res, UsersList, {
-      users,
+      users: allUsers,
       sidebarLinks: getSidebarLinks('users'),
     }, { 
       title: 'Users',
@@ -268,29 +265,24 @@ router.post('/users/:id/reset-password', ensureAdmin, async (req: Request, res: 
     const { newPassword } = req.body;
 
     if (!newPassword || newPassword.length < 6) {
-      const users = await prisma.user.findMany({
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-          emailVerified: true,
-          createdAt: true,
-        },
-      });
+      const allUsers = await db.select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        role: users.role,
+        emailVerified: users.emailVerified,
+        createdAt: users.createdAt,
+      }).from(users).orderBy(desc(users.createdAt));
+      
       return renderView(res, UsersList, {
-        users,
+        users: allUsers,
         error: 'A senha deve ter pelo menos 6 caracteres',
         sidebarLinks: getSidebarLinks('users'),
       }, { title: 'Users' });
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    await prisma.user.update({
-      where: { id: req.params.id as string },
-      data: { passwordHash },
-    });
+    await db.update(users).set({ passwordHash }).where(eq(users.id, req.params.id as string));
 
     res.redirect('/admin/users');
   } catch (error) {
@@ -304,20 +296,15 @@ router.post('/users/:id/reset-password', ensureAdmin, async (req: Request, res: 
  */
 router.post('/users/:id/toggle-role', ensureAdmin, async (req: Request, res: Response) => {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.params.id as string },
-      select: { role: true },
-    });
+    const result = await db.select({ role: users.role }).from(users).where(eq(users.id, req.params.id as string)).limit(1);
+    const user = result[0];
 
     if (!user) {
       return res.redirect('/admin/users');
     }
 
     const newRole = user.role === 'ADMIN' ? 'USER' : 'ADMIN';
-    await prisma.user.update({
-      where: { id: req.params.id as string },
-      data: { role: newRole },
-    });
+    await db.update(users).set({ role: newRole }).where(eq(users.id, req.params.id as string));
 
     res.redirect('/admin/users');
   } catch (error) {

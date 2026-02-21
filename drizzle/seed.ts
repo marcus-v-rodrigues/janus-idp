@@ -1,13 +1,10 @@
-import { PrismaClient } from '@prisma/client';
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
-import * as bcrypt from 'bcryptjs';
 import 'dotenv/config';
+import { db } from '../src/db';
+import { schema } from '../src/db';
+import { eq } from 'drizzle-orm';
+import * as bcrypt from 'bcryptjs';
 
-const connectionString = process.env.DATABASE_URL;
-const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const { users, clients } = schema;
 
 /**
  * Faz hash de uma senha usando bcrypt
@@ -29,9 +26,8 @@ async function seedAdminUser(): Promise<void> {
   const adminName = process.env.ADMIN_NAME || 'Administrador';
 
   // Verifica se o usuário administrador já existe
-  const existingAdmin = await prisma.user.findUnique({
-    where: { email: adminEmail },
-  });
+  const existingResult = await db.select().from(users).where(eq(users.email, adminEmail)).limit(1);
+  const existingAdmin = existingResult[0];
 
   if (existingAdmin) {
     console.log(`✓ Usuário admin (${adminEmail}) já existe.`);
@@ -42,14 +38,12 @@ async function seedAdminUser(): Promise<void> {
   const passwordHash = await hashPassword(adminPassword);
 
   // Cria o usuário administrador
-  await prisma.user.create({
-    data: {
-      email: adminEmail,
-      passwordHash: passwordHash,
-      name: adminName,
-      emailVerified: true,
-      role: 'ADMIN',
-    },
+  await db.insert(users).values({
+    email: adminEmail,
+    passwordHash: passwordHash,
+    name: adminName,
+    emailVerified: true,
+    role: 'ADMIN',
   });
 
   console.log(`✓ Usuário admin (${adminEmail}) criado com sucesso!`);
@@ -68,21 +62,18 @@ async function seedClients(): Promise<void> {
   // para criar o cliente no banco. O servidor carrega todos os clientes dinamicamente
   // do banco em src/index.ts.
   const testClientId = process.env.OIDC_CLIENT_ID || 'test-client';
-  const testExists = await prisma.client.findUnique({
-    where: { clientId: testClientId },
-  });
+  const testResult = await db.select().from(clients).where(eq(clients.clientId, testClientId)).limit(1);
+  const testExists = testResult[0];
 
   if (!testExists) {
-    await prisma.client.create({
-      data: {
-        clientId: testClientId,
-        clientSecret: process.env.OIDC_CLIENT_SECRET || 'test-secret',
-        name: 'OIDC Debugger Client',
-        redirectUris: (process.env.OIDC_REDIRECT_URIS || 'https://oidcdebugger.com/debug').split(','),
-        grantTypes: ['authorization_code', 'refresh_token'],
-        responseTypes: ['code'],
-        scope: 'openid profile email'
-      }
+    await db.insert(clients).values({
+      clientId: testClientId,
+      clientSecret: process.env.OIDC_CLIENT_SECRET || 'test-secret',
+      name: 'OIDC Debugger Client',
+      redirectUris: (process.env.OIDC_REDIRECT_URIS || 'https://oidcdebugger.com/debug').split(','),
+      grantTypes: ['authorization_code', 'refresh_token'],
+      responseTypes: ['code'],
+      scope: 'openid profile email'
     });
     console.log('✓ Cliente de teste inserido com sucesso!');
   } else {
@@ -95,21 +86,18 @@ async function seedClients(): Promise<void> {
   // do banco em src/index.ts.
   const auditorClientId = process.env.UX_CLIENT_ID || 'ux-auditor';
   const baseDomain = process.env.UX_BASE_DOMAIN || 'dashboard.seudominio.com';
-  const dashboardExists = await prisma.client.findUnique({
-    where: { clientId: auditorClientId },
-  });
+  const auditorResult = await db.select().from(clients).where(eq(clients.clientId, auditorClientId)).limit(1);
+  const dashboardExists = auditorResult[0];
 
   if (!dashboardExists) {
-    await prisma.client.create({
-      data: {
-        clientId: auditorClientId,
-        clientSecret: process.env.UX_CLIENT_SECRET || 'janus_dashboard_secret',
-        name: 'UX Auditor',
-        redirectUris: [`${baseDomain}/api/auth/callback/janus`],
-        grantTypes: ['authorization_code', 'refresh_token'],
-        responseTypes: ['code'],
-        scope: 'openid profile email'
-      }
+    await db.insert(clients).values({
+      clientId: auditorClientId,
+      clientSecret: process.env.UX_CLIENT_SECRET || 'janus_dashboard_secret',
+      name: 'UX Auditor',
+      redirectUris: [`${baseDomain}/api/auth/callback/janus`],
+      grantTypes: ['authorization_code', 'refresh_token'],
+      responseTypes: ['code'],
+      scope: 'openid profile email'
     });
     console.log('✓ Cliente ux-auditor inserido com sucesso!');
   } else {
@@ -123,26 +111,23 @@ async function seedClients(): Promise<void> {
   // para inserir o cliente do dashboard:
   //
   // const dashboardClientId = 'janus-dashboard';
-  // const dashboardClientExists = await prisma.client.findUnique({
-  //   where: { clientId: dashboardClientId },
-  // });
+  // const dashboardClientResult = await db.select().from(clients).where(eq(clients.clientId, dashboardClientId)).limit(1);
+  // const dashboardClientExists = dashboardClientResult[0];
   //
   // if (!dashboardClientExists) {
-  //   await prisma.client.create({
-  //     data: {
-  //       clientId: dashboardClientId,
-  //       clientSecret: process.env.DASHBOARD_CLIENT_SECRET || 'change_me_in_production',
-  //       name: 'Janus Dashboard',
-  //       redirectUris: [
-  //         `https://${process.env.DASHBOARD_DOMAIN || 'dashboard.seudominio.com'}/auth/callback`
-  //       ],
-  //       postLogoutRedirectUris: [
-  //         `https://${process.env.DASHBOARD_DOMAIN || 'dashboard.seudominio.com'}/`
-  //       ],
-  //       grantTypes: ['authorization_code', 'refresh_token'],
-  //       responseTypes: ['code'],
-  //       scope: 'openid profile email'
-  //     }
+  //   await db.insert(clients).values({
+  //     clientId: dashboardClientId,
+  //     clientSecret: process.env.DASHBOARD_CLIENT_SECRET || 'change_me_in_production',
+  //     name: 'Janus Dashboard',
+  //     redirectUris: [
+  //       `https://${process.env.DASHBOARD_DOMAIN || 'dashboard.seudominio.com'}/auth/callback`
+  //     ],
+  //     postLogoutRedirectUris: [
+  //       `https://${process.env.DASHBOARD_DOMAIN || 'dashboard.seudominio.com'}/`
+  //     ],
+  //     grantTypes: ['authorization_code', 'refresh_token'],
+  //     responseTypes: ['code'],
+  //     scope: 'openid profile email'
   //   });
   //   console.log('✓ Client do Dashboard inserido com sucesso!');
   // } else {
@@ -174,7 +159,4 @@ main()
   .catch((e) => {
     console.error('❌ Erro ao executar seed:', e);
     process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
   });

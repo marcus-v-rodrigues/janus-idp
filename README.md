@@ -1,6 +1,6 @@
 # Janus IdP
 
-Janus IdP é um Identity Provider (IdP) construído com **Node.js**, **Express**, **oidc-provider** e **Prisma 7**. Esta versão foi projetada para rodar inteiramente via **Docker Compose**.
+Janus IdP é um Identity Provider (IdP) construído com **Node.js**, **Express**, **oidc-provider** e **Drizzle ORM**. Esta versão foi projetada para rodar inteiramente via **Docker Compose**.
 
 ## 🚀 Funcionalidades
 
@@ -8,7 +8,7 @@ Janus IdP é um Identity Provider (IdP) construído com **Node.js**, **Express**
 - **OpenID Connect Core**: Suporte a fluxos de `authorization_code` e `refresh_token`.
 - **Persistência em PostgreSQL**: Armazenamento seguro de payloads OIDC e configurações de clientes.
 - **Configuração Dinâmica**: Clientes OAuth carregados do banco de dados na inicialização.
-- **Prisma 7**: Utilização de Driver Adapters modernos para PostgreSQL.
+- **Drizzle ORM**: ORM TypeScript moderno e leve para PostgreSQL.
 
 ## 🛠️ Pré-requisitos
 
@@ -36,21 +36,31 @@ Janus IdP é um Identity Provider (IdP) construído com **Node.js**, **Express**
    Este comando irá:
    - Iniciar o banco de dados PostgreSQL.
    - Construir a imagem da aplicação.
-   - Gerar o Prisma Client e realizar o build do código.
+   - Realizar o build do código.
    - Iniciar o servidor na porta configurada (padrão: 3000).
 
 ## 🗄️ Gerenciando o Banco de Dados (Via Docker)
 
-Como a aplicação e o Prisma rodam dentro do container, você pode executar comandos de manutenção usando `docker exec`:
+Como a aplicação roda dentro do container, você pode executar comandos de manutenção usando `docker exec`:
 
-### Criar Tabelas (Migrate)
+### Gerar Migrations
 ```bash
-docker compose exec app npx prisma migrate dev
+docker compose exec app npm run db:generate
+```
+
+### Aplicar Migrations (Push)
+```bash
+docker compose exec app npm run db:push
 ```
 
 ### Popular Banco (Seed)
 ```bash
-docker compose exec app npx prisma db seed
+docker compose exec app npm run db:seed
+```
+
+### Drizzle Studio
+```bash
+docker compose exec app npm run db:studio
 ```
 
 ## 🧪 Como Testar

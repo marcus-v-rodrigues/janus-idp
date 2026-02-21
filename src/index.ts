@@ -3,7 +3,8 @@ import express from 'express';
 import * as dotenv from 'dotenv';
 import helmet from 'helmet';
 import session from 'express-session';
-import { PrismaAdapter, prisma } from './adapter';
+import { DrizzleAdapter, db } from './adapter';
+import { schema } from './db';
 import interactionRoutes from './routes/interaction';
 import adminRoutes from './routes/admin';
 import apiRoutes from './routes/api';
@@ -17,7 +18,7 @@ const issuer = process.env.ISSUER_URL || `http://localhost:${port}/oidc`;
 
 async function startServer() {
   // 1. Busca todos os clientes cadastrados no banco
-  const dbClients = await prisma.client.findMany();
+  const dbClients = await db.select().from(schema.clients);
 
   // Extrai todos os escopos únicos definidos nos clientes no banco
   // Isso garante que se criar um cliente novo com 'read:photos', o servidor aceitará
@@ -42,7 +43,7 @@ async function startServer() {
   const jwkKey = getPemKeys();
 
   const configuration: Configuration = {
-    adapter: PrismaAdapter,
+    adapter: DrizzleAdapter,
     clients: clientsConfig as any,
     // O servidor aceita dinamicamente qualquer escopo que clientes possuam
     scopes: Array.from(supportedScopes),

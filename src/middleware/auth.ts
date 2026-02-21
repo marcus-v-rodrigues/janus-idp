@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
-import { prisma } from '../adapter';
+import { db } from '../adapter';
+import { schema } from '../db';
+import { eq } from 'drizzle-orm';
 
+const { users } = schema;
 
 /**
  * Middleware para garantir que o usuário tenha a função ADMIN.
@@ -21,10 +24,14 @@ export async function ensureAdmin(
     }
 
     // Verifica se o usuário existe e tem a função ADMIN
-    const user = await prisma.user.findUnique({
-      where: { id: adminUserId },
-      select: { id: true, role: true, email: true, name: true },
-    });
+    const result = await db.select({
+      id: users.id,
+      role: users.role,
+      email: users.email,
+      name: users.name,
+    }).from(users).where(eq(users.id, adminUserId)).limit(1);
+    
+    const user = result[0];
 
     if (!user || user.role !== 'ADMIN') {
       // Usuário não existe ou não é um administrador

@@ -10,11 +10,11 @@
     "build:client": "vite build",
     "start": "node dist/index.js",
     "dev:client": "vite build --watch",
-    "prisma:generate": "dotenv -e .env -- prisma generate",
-    "prisma:migrate": "dotenv -e .env -- prisma migrate dev",
-    "prisma:seed": "dotenv -e .env -- prisma db seed",
-    "prisma:studio": "dotenv -e .env -- prisma studio",
-    "prisma:reset": "dotenv -e .env -- prisma migrate reset",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "ts-node drizzle/seed.ts",
     "generate-keys": "ts-node scripts/generate-keys.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -30,15 +30,11 @@
     "url": "https://github.com/marcus-v-rodrigues/janus-idp/issues"
   },
   "homepage": "https://github.com/marcus-v-rodrigues/janus-idp#readme",
-  "prisma": {
-    "seed": "ts-node prisma/seed.ts"
-  },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.3.0",
-    "@prisma/client": "7.3.0",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.2.3",
     "dotenv-expand": "^12.0.3",
+    "drizzle-orm": "^0.39.3",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
     "helmet": "^8.1.0",
@@ -59,8 +55,8 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.4",
     "dotenv-cli": "^11.0.0",
+    "drizzle-kit": "^0.30.4",
     "nodemon": "^3.1.11",
-    "prisma": "7.3.0",
     "typescript": "^5.9.3",
     "vite": "^7.3.1"
   }

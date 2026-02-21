@@ -1,5 +1,9 @@
 import { KoaContextWithOIDC } from 'oidc-provider';
-import { prisma } from '../adapter';
+import { db } from '../adapter';
+import { schema } from '../db';
+import { eq } from 'drizzle-orm';
+
+const { users } = schema;
 
 /**
  * Função para encontrar uma conta de usuário no banco de dados.
@@ -17,9 +21,8 @@ export async function findAccount(
 ): Promise<undefined | { accountId: string; async: any; claims: (...args: any[]) => any }> {
   try {
     // Busca o usuário no banco de dados
-    const user = await prisma.user.findUnique({
-      where: { id: sub },
-    });
+    const result = await db.select().from(users).where(eq(users.id, sub)).limit(1);
+    const user = result[0];
 
     if (!user) {
       return undefined;

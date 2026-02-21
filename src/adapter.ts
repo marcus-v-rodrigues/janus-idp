@@ -1,22 +1,18 @@
-import "dotenv/config";
+import 'dotenv/config';
 import { Adapter, AdapterPayload } from 'oidc-provider';
-import { PrismaClient } from '@prisma/client';
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { db, schema } from './db';
+import { eq, and, isNull, lt } from 'drizzle-orm';
 
-const connectionString = process.env.DATABASE_URL;
-const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
-export const prisma = new PrismaClient({ adapter });
+const { oidcPayloads } = schema;
 
 /**
- * PrismaAdapter implementa a interface Adapter do oidc-provider
- * para persistir dados do provedor OIDC usando PostgreSQL e Prisma.
+ * DrizzleAdapter implementa a interface Adapter do oidc-provider
+ * para persistir dados do provedor OIDC usando PostgreSQL e Drizzle ORM.
  *
  * Este adaptador armazena todos os dados do provedor OIDC (sessões, tokens de acesso,
  * tokens de atualização, códigos de autorização, etc.) no modelo OidcPayload.
  */
-export class PrismaAdapter implements Adapter {
+export class DrizzleAdapter implements Adapter {
   name: string;
 
   constructor(name: string) {
@@ -34,26 +30,31 @@ export class PrismaAdapter implements Adapter {
   async upsert(id: string, payload: AdapterPayload, expiresIn: number): Promise<void> {
     const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
 
-    await prisma.oidcPayload.upsert({
-      where: { id },
-      update: {
-        payload: payload as any,
-        expiresAt,
-        grantId: payload.grantId,
-        userCode: payload.userCode,
-        uid: payload.uid,
-        updatedAt: new Date(),
-      },
-      create: {
+    const existing = await db.select().from(oidcPayloads).where(eq(oidcPayloads.id, id)).limit(1);
+
+    if (existing.length > 0) {
+      await db
+        .update(oidcPayloads)
+        .set({
+          payload: payload as Record<string, any>,
+          expiresAt,
+          grantId: payload.grantId,
+          userCode: payload.userCode,
+          uid: payload.uid,
+          updatedAt: new Date(),
+        })
+        .where(eq(oidcPayloads.id, id));
+    } else {
+      await db.insert(oidcPayloads).values({
         id,
         type: this.name,
-        payload: payload as any,
+        payload: payload as Record<string, any>,
         grantId: payload.grantId,
         userCode: payload.userCode,
         uid: payload.uid,
         expiresAt,
-      },
-    });
+      });
+    }
   }
 
   /**
@@ -64,7 +65,8 @@ export class PrismaAdapter implements Adapter {
    * @returns Os dados do payload ou undefined se não encontrado/expirado
    */
   async find(id: string): Promise<AdapterPayload | undefined> {
-    const doc = await prisma.oidcPayload.findUnique({ where: { id } });
+    const docs = await db.select().from(oidcPayloads).where(eq(oidcPayloads.id, id)).limit(1);
+    const doc = docs[0];
 
     if (!doc) {
       return undefined;
@@ -88,7 +90,12 @@ export class PrismaAdapter implements Adapter {
    * @returns Os dados do payload ou undefined se não encontrado/expirado
    */
   async findByUserCode(userCode: string): Promise<AdapterPayload | undefined> {
-    const doc = await prisma.oidcPayload.findUnique({ where: { userCode } });
+    const docs = await db
+      .select()
+      .from(oidcPayloads)
+      .where(eq(oidcPayloads.userCode, userCode))
+      .limit(1);
+    const doc = docs[0];
 
     if (!doc) {
       return undefined;
@@ -112,7 +119,12 @@ export class PrismaAdapter implements Adapter {
    * @returns Os dados do payload ou undefined se não encontrado/expirado
    */
   async findByUid(uid: string): Promise<AdapterPayload | undefined> {
-    const doc = await prisma.oidcPayload.findUnique({ where: { uid } });
+    const docs = await db
+      .select()
+      .from(oidcPayloads)
+      .where(eq(oidcPayloads.uid, uid))
+      .limit(1);
+    const doc = docs[0];
 
     if (!doc) {
       return undefined;
@@ -136,7 +148,7 @@ export class PrismaAdapter implements Adapter {
    */
   async destroy(id: string): Promise<void> {
     try {
-      await prisma.oidcPayload.delete({ where: { id } });
+      await db.delete(oidcPayloads).where(eq(oidcPayloads.id, id));
     } catch (err) {
       // Idempotência - ignora se o registro não existir
       // Este é o comportamento esperado quando o payload já foi removido
@@ -150,7 +162,7 @@ export class PrismaAdapter implements Adapter {
    * @param grantId - O grant id a ser revogado
    */
   async revokeByGrantId(grantId: string): Promise<void> {
-    await prisma.oidcPayload.deleteMany({ where: { grantId } });
+    await db.delete(oidcPayloads).where(eq(oidcPayloads.grantId, grantId));
   }
 
   /**
@@ -160,7 +172,9 @@ export class PrismaAdapter implements Adapter {
    * @param id - O identificador único para o payload a ser consumido
    */
   async consume(id: string): Promise<void> {
-    const doc = await prisma.oidcPayload.findUnique({ where: { id } });
+    const docs = await db.select().from(oidcPayloads).where(eq(oidcPayloads.id, id)).limit(1);
+    const doc = docs[0];
+
     if (!doc) {
       return;
     }
@@ -168,13 +182,13 @@ export class PrismaAdapter implements Adapter {
     const payload = doc.payload as AdapterPayload;
     payload.consumed = Math.floor(Date.now() / 1000);
 
-    await prisma.oidcPayload.update({
-      where: { id },
-      data: {
-        payload: payload as any,
-        consumedAt: new Date()
-      },
-    });
+    await db
+      .update(oidcPayloads)
+      .set({
+        payload: payload as Record<string, any>,
+        consumedAt: new Date(),
+      })
+      .where(eq(oidcPayloads.id, id));
   }
 }
 
@@ -184,12 +198,12 @@ export class PrismaAdapter implements Adapter {
  * Uso:
  * ```ts
  * import { Provider } from 'oidc-provider';
- * import { PrismaAdapter } from './adapter';
+ * import { DrizzleAdapter } from './adapter';
  *
  * const configuration = {
  *   adapter: {
  *     name: 'Session',
- *     constructor: PrismaAdapter,
+ *     constructor: DrizzleAdapter,
  *   },
  *   // ... outras configurações
  * };
@@ -198,8 +212,11 @@ export class PrismaAdapter implements Adapter {
  * ```
  *
  * @param name - O nome do modelo (ex: 'Session', 'AccessToken', 'AuthorizationCode', etc.)
- * @returns Uma nova instância de PrismaAdapter
+ * @returns Uma nova instância de DrizzleAdapter
  */
-export function createAdapter(name: string): PrismaAdapter {
-  return new PrismaAdapter(name);
+export function createAdapter(name: string): DrizzleAdapter {
+  return new DrizzleAdapter(name);
 }
+
+// Re-export db for convenience
+export { db };

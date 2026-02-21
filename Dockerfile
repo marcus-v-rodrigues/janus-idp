@@ -1,9 +1,6 @@
 # Stage 1: Dependencies
 FROM node:24.12.0-slim AS dependencies
 
-# Instala dependências necessárias para o Prisma (openssl)
-RUN apt-get update -y && apt-get install -y openssl
-
 WORKDIR /app
 
 # Copia package files e instala todas as dependências (incluindo dev)
@@ -12,9 +9,6 @@ RUN npm ci
 
 # Stage 2: Builder
 FROM node:24.12.0-slim AS builder
-
-# Instala dependências necessárias para o Prisma (openssl)
-RUN apt-get update -y && apt-get install -y openssl
 
 WORKDIR /app
 
@@ -25,20 +19,14 @@ RUN npm ci
 # Copia o código fonte
 COPY . .
 
-# Gera o Prisma Client durante o build
-RUN npx prisma generate
-
 # Compila o TypeScript
 RUN npm run build
-
-# Compila o seed script
-RUN npx tsc prisma/seed.ts --outDir dist/prisma --module commonjs --target es2022 --esModuleInterop --skipLibCheck
 
 # Stage 3: Production
 FROM node:24.12.0-slim AS production
 
-# Instala dependências necessárias para o Prisma (openssl) e o wget para o healthcheck
-RUN apt-get update -y && apt-get install -y openssl wget && rm -rf /var/lib/apt/lists/*
+# Instala o wget para o healthcheck
+RUN apt-get update -y && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
 
 # Cria usuário não-root para segurança
 RUN groupadd -r nodejs && useradd -r -g nodejs nodejs
@@ -55,16 +43,14 @@ COPY --from=builder /app/node_modules/typescript ./node_modules/typescript
 
 # Copia o código compilado do stage de builder
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 # Copia o diretório public com os assets client-side (incluindo o bundle de hidratação)
 COPY --from=builder /app/public ./public
 
 # Copia arquivos TypeScript e configs para poder rodar ts-node em produção
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
-
-# Traz o cliente Prisma gerado (o motor do banco) do builder para a produção
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder /app/src/db ./src/db
+COPY --from=builder /app/drizzle ./drizzle
 
 # Cria diretório para chaves RSA com permissões adequadas
 RUN mkdir -p /app/keys && chown -R nodejs:nodejs /app/keys

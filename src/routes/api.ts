@@ -1,9 +1,13 @@
 import { Router, Request, Response } from 'express';
 import * as bcrypt from 'bcryptjs';
-import { prisma } from '../adapter';
+import { db } from '../adapter';
+import { schema } from '../db';
+import { eq } from 'drizzle-orm';
 import { ensureServiceKey } from '../middleware/auth';
 
 const router = Router();
+
+const { users } = schema;
 
 /**
  * Interface para o corpo da requisição de criação de usuário.
@@ -58,9 +62,8 @@ router.post('/users', ensureServiceKey, async (req: Request, res: Response) => {
     }
 
     // Verifica se já existe um usuário com este email
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
+    const existingResult = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    const existingUser = existingResult[0];
 
     if (existingUser) {
       return res.status(409).json({
@@ -73,22 +76,19 @@ router.post('/users', ensureServiceKey, async (req: Request, res: Response) => {
     const passwordHash = await bcrypt.hash(password, 10);
 
     // Cria o usuário no banco de dados
-    const user = await prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        name: name || null,
-        role: 'USER',
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        emailVerified: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    const [user] = await db.insert(users).values({
+      email,
+      passwordHash,
+      name: name || null,
+      role: 'USER',
+    }).returning({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      role: users.role,
+      emailVerified: users.emailVerified,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
     });
 
     console.log(`[API] User created via API: ${user.email} (${user.id})`);

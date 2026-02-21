@@ -1,24 +1,44 @@
-# Implementação de Client-Side Hydration
+# React SSR e Hydration no Janus IdP
 
 ## Visão Geral
 
-Este projeto agora suporta hidratação client-side para componentes React, permitindo o melhor dos dois mundos: renderização server-side para SEO e performance de carregamento inicial, além de interatividade client-side.
+O Janus IdP utiliza React com Server-Side Rendering (SSR) e client-side hydration para renderizar o portal administrativo e as páginas de interação OIDC. Esta arquitetura oferece o melhor dos dois mundos: rápida renderização inicial pelo servidor (ótimo para SEO e perceived performance) e interatividade client-side para uma melhor experiência do usuário.
 
-## O que é Hydration?
+## O que é SSR e Hydration?
 
-Hydration é o processo onde o React "assume o controle" de uma página HTML renderizada no servidor e a torna interativa. O servidor renderiza o HTML inicial, e então o JavaScript client-side anexa event listeners e habilita a interatividade.
+### Server-Side Rendering (SSR)
+No SSR, o servidor React converte os componentes em HTML antes de enviar a resposta ao cliente. Isso significa que:
 
-## Arquitetura
+- O navegador recebe HTML completo e renderizável imediatamente
+- Os motores de busca podem indexar o conteúdo sem executar JavaScript
+- A página é visível para o usuário antes mesmo do JavaScript carregar
 
-### Server-Side (SSR)
-- Componentes são renderizados usando `ReactDOMServer.renderToString()`
-- HTML é gerado com atributos de dados do React
-- Props são serializadas e incorporadas na página
+### Client-Side Hydration
+A hidratação é o processo onde o React "assume o controle" do HTML renderizado pelo servidor:
 
-### Client-Side (Hydration)
-- Vite faz o bundling do código React e dependências
-- O script client-side lê os dados de hidratação do DOM
-- React hidrata o HTML existente, preservando o conteúdo renderizado no servidor
+- O JavaScript client-side carrega e lê o HTML existente no DOM
+- Event listeners são anexados aos elementos
+- A página se torna interativa, mantendo o mesmo estado do servidor
+
+### Renderização Estática (sem Hydration)
+Para páginas que precisam apenas exibir conteúdo sem interatividade (como formulários de POST simples), usamos `renderToStaticMarkup`:
+
+- HTML mais limpo e leve
+- Sem overhead de hidratação client-side
+- Ideal para páginas onde a interatividade não é necessária
+
+## Arquitetura do Janus IdP
+
+### Componentes Renderizados com Hydration
+
+O conteúdo está no arquivo [`src/index.ts`](src/index.ts:1):
+
+- **Portal Admin** (`/admin/*`): Dashboard, lista de clientes, formulários
+- **Páginas OIDC** (`/interaction/*`): Login, consentimento, error
+
+### Componentes Estáticos
+
+- **Páginas de redirecionamento/POST**: Enhanced forms submetidos via POST
 
 ## Detalhes da Implementação
 
@@ -29,6 +49,7 @@ O projeto usa Vite para bundling client-side:
 ```typescript
 // vite.config.ts
 import { defineConfig } from 'vite';
+import { resolve } from 'path';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
@@ -52,25 +73,33 @@ export default defineConfig({
 
 ### 2. Entry Point Client-Side
 
-O entry point client-side ([`src/client/index.tsx`](src/client/index.tsx:1)):
+O entry point client-side ([`src/client/index.tsx`](src/client/index.tsx:1)) carrega dinamicamente os componentes e realiza a hidratação:
 
 ```typescript
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { hydrateRoot } from 'react-dom/client';
+```
 
-// Lê dados de hidratação do DOM
-const hydrationElement = document.getElementById('__HYDRATION_DATA__');
-const hydrationData = JSON.parse(hydrationElement.textContent);
+A hidratação ocorre automaticamente quando:
+- A página carrega e o DOM está pronto
+- O script [`/__HYDRATION_DATA__`](src/client/index.tsx:52) é encontrado
+- O componente correspondente é importado dinamicamente
 
-// Importa o componente dinamicamente
-const Component = await importComponent(hydrationData.componentName);
+**Mapeamento de componentes** ([`src/client/index.tsx`](src/client/index.tsx:13)):
 
-// Hidrata o componente
-hydrateRoot(
-  document.getElementById('root'),
-  React.createElement(Component, hydrationData.props)
-);
+```typescript
+async function importComponent(componentName: string): Promise<React.FC<any> | null> {
+  switch (componentName) {
+    case 'Dashboard':
+      const { Dashboard } = await import('../views/admin/Dashboard');
+      return Dashboard;
+    case 'ClientsList':
+      const { ClientsList } = await import('../views/admin/ClientsList');
+      return ClientsList;
+    // ... outros componentes
+  }
+}
 ```
 
 ### 3. Renderer Atualizado

@@ -157,7 +157,7 @@ Se você ver um erro `EACCES: permission denied, mkdir '/app/keys'`:
 - Para produção, use variáveis de ambiente `RSA_PRIVATE_KEY` e `RSA_PUBLIC_KEY`
 - Para desenvolvimento local, verifique as permissões do diretório
 
-**Solução Docker:** O Dockerfile já está configurado para criar o diretório `/app/keys` com as permissões corretas antes de mudar para o usuário não-root. Se você ainda encountering este erro, reconstrua a imagem:
+**Solução Docker:** O Dockerfile já está configurado para criar o diretório `/app/keys` com as permissões corretas antes de mudar para o usuário não-root. Se você ainda encontrar este erro, reconstrua a imagem:
 
 ```bash
 docker compose down

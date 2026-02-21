@@ -5,6 +5,7 @@
 O Janus IdP é um Identity Provider OpenID Connect implementado com uma arquitetura modular moderna. O sistema consiste em um servidor HTTP (Express) que integra o provedor `oidc-provider`, um banco de dados PostgreSQL para persistência, e uma interface administrativa construída com React SSR.
 
 ```mermaid
+%%{init: {"flowchart": {"subGraphTitleMargin": {"bottom": 30}}}}%%
 flowchart TB
     subgraph JanusIdP["Janus IdP Architecture"]
         subgraph Express["Express HTTP Server"]

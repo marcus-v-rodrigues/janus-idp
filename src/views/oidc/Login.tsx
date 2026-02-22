@@ -49,7 +49,8 @@ export const Login: React.FC<LoginProps> = ({ uid, client, params, flash }) => {
           </div>
         )}
 
-        <form method="POST" action={`/interaction/${uid}/login`}>
+        {/* O path deve ser /oidc/interaction/... para compartilhar cookies com o OIDC Provider */}
+        <form method="POST" action={`/oidc/interaction/${uid}/login`}>
           <Input
             label="Email"
             type="email"

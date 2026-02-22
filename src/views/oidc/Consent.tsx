@@ -33,7 +33,8 @@ export const Consent: React.FC<ConsentProps> = ({
   const handleAbort = () => {
     const form = document.createElement('form');
     form.method = 'POST';
-    form.action = `/interaction/${uid}/abort`;
+    // O path deve ser /oidc/interaction/... para compartilhar cookies com o OIDC Provider
+    form.action = `/oidc/interaction/${uid}/abort`;
     document.body.appendChild(form);
     form.submit();
   };
@@ -91,7 +92,8 @@ export const Consent: React.FC<ConsentProps> = ({
           </div>
 
           {/* Form Actions */}
-          <form method="post" action={`/interaction/${uid}/confirm`}>
+          {/* O path deve ser /oidc/interaction/... para compartilhar cookies com o OIDC Provider */}
+          <form method="post" action={`/oidc/interaction/${uid}/confirm`}>
             <input type="hidden" name="consent" value="true" />
             
             <div className="flex space-x-3">

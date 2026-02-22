@@ -11,6 +11,8 @@ interface Client {
   name: string | null;
   redirectUris: string[];
   postLogoutRedirectUris: string[];
+  grantTypes: string[];
+  responseTypes: string[];
   scope: string | null;
   logoUri: string | null;
   brandColor: string | null;
@@ -152,6 +154,38 @@ export const ClientsForm: React.FC<ClientsFormProps> = ({ client, error, sidebar
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             <p className="mt-1 text-xs text-gray-500">Comma-separated list of URIs to redirect after logout</p>
+          </div>
+
+          <div className="mb-4">
+            <label htmlFor="grantTypes" className="block text-sm font-medium text-gray-700 mb-1">
+              Grant Types
+            </label>
+            <input
+              id="grantTypes"
+              type="text"
+              name="grantTypes"
+              defaultValue={client?.grantTypes?.join(', ') || 'authorization_code'}
+              placeholder="authorization_code"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+            <p className="mt-1 text-xs text-gray-500">Comma-separated list of grant types (e.g., authorization_code, client_credentials)</p>
+          </div>
+
+          <div className="mb-4">
+            <label htmlFor="responseTypes" className="block text-sm font-medium text-gray-700 mb-1">
+              Response Types
+            </label>
+            <input
+              id="responseTypes"
+              type="text"
+              name="responseTypes"
+              defaultValue={client?.responseTypes?.join(', ') || 'code'}
+              placeholder="code"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+            <p className="mt-1 text-xs text-gray-500">Comma-separated list of response types (e.g., code, id_token, token)</p>
           </div>
 
           <Input

@@ -71,9 +71,9 @@ async function seedClients(): Promise<void> {
       clientSecret: process.env.OIDC_CLIENT_SECRET || 'test-secret',
       name: 'OIDC Debugger Client',
       redirectUris: (process.env.OIDC_REDIRECT_URIS || 'https://oidcdebugger.com/debug').split(','),
-      grantTypes: ['authorization_code', 'refresh_token'],
+      grantTypes: ['authorization_code'],
       responseTypes: ['code'],
-      scope: 'openid profile email'
+      scope: 'openid profile email offline_access'
     });
     console.log('✓ Cliente de teste inserido com sucesso!');
   } else {
@@ -95,9 +95,9 @@ async function seedClients(): Promise<void> {
       clientSecret: process.env.UX_CLIENT_SECRET || 'janus_dashboard_secret',
       name: 'UX Auditor',
       redirectUris: [`${baseDomain}/api/auth/callback/janus`],
-      grantTypes: ['authorization_code', 'refresh_token'],
+      grantTypes: ['authorization_code'],
       responseTypes: ['code'],
-      scope: 'openid profile email'
+      scope: 'openid profile email offline_access'
     });
     console.log('✓ Cliente ux-auditor inserido com sucesso!');
   } else {
@@ -125,7 +125,7 @@ async function seedClients(): Promise<void> {
   //     postLogoutRedirectUris: [
   //       `https://${process.env.DASHBOARD_DOMAIN || 'dashboard.seudominio.com'}/`
   //     ],
-  //     grantTypes: ['authorization_code', 'refresh_token'],
+  //     grantTypes: ['authorization_code'],
   //     responseTypes: ['code'],
   //     scope: 'openid profile email'
   //   });

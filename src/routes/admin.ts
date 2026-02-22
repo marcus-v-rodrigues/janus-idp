@@ -167,7 +167,7 @@ router.get('/clients/:id/edit', ensureAdmin, async (req: Request, res: Response)
  * POST /admin/clients - Criar ou atualizar cliente
  */
 router.post('/clients', ensureAdmin, async (req: Request, res: Response) => {
-  const { id, name, clientId, clientSecret, redirectUris, postLogoutRedirectUris, scope, logoUri, brandColor } = req.body;
+  const { id, name, clientId, clientSecret, redirectUris, postLogoutRedirectUris, grantTypes, responseTypes, scope, logoUri, brandColor } = req.body;
 
   try {
     const data = {
@@ -176,6 +176,8 @@ router.post('/clients', ensureAdmin, async (req: Request, res: Response) => {
       clientSecret,
       redirectUris: Array.isArray(redirectUris) ? redirectUris : redirectUris.split(',').map((s: string) => s.trim()),
       postLogoutRedirectUris: Array.isArray(postLogoutRedirectUris) ? postLogoutRedirectUris : postLogoutRedirectUris.split(',').map((s: string) => s.trim()),
+      grantTypes: Array.isArray(grantTypes) ? grantTypes : (grantTypes ? grantTypes.split(',').map((s: string) => s.trim()) : ['authorization_code']),
+      responseTypes: Array.isArray(responseTypes) ? responseTypes : (responseTypes ? responseTypes.split(',').map((s: string) => s.trim()) : ['code']),
       scope: scope || 'openid profile email',
       logoUri: logoUri || null,
       brandColor: brandColor || null,

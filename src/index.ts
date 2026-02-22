@@ -53,6 +53,16 @@ async function startServer() {
     pkce: {
       required: () => true,
     },
+    // Configuração para emitir refresh tokens quando o scope offline_access for solicitado
+    // O refresh_token não deve estar no array grant_types do cliente
+    // Ele é automaticamente suportado quando configurado aqui
+    issueRefreshToken: async (ctx, client, code) => {
+      // Emite refresh token se o cliente permite e o scope inclui offline_access
+      return (
+        client.grantTypeAllowed('refresh_token')
+        && code.scopes.has('offline_access')
+      );
+    },
     features: {
       devInteractions: { enabled: false },
       introspection: { enabled: true },

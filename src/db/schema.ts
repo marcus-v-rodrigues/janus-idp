@@ -69,7 +69,7 @@ export const clients = pgTable('Client', {
   brandColor: text('brandColor'),
   redirectUris: text('redirectUris').array().notNull(),
   postLogoutRedirectUris: text('postLogoutRedirectUris').array().notNull().default([]),
-  grantTypes: text('grantTypes').array().notNull().default(['authorization_code', 'refresh_token']),
+  grantTypes: text('grantTypes').array().notNull().default(['authorization_code']),
   responseTypes: text('responseTypes').array().notNull().default(['code']),
   scope: text('scope').default('openid profile email'),
   createdAt: timestamp('createdAt').defaultNow().notNull(),

@@ -22,7 +22,7 @@ http://localhost:3000/api
 
 ### Criar Usuário
 
-Cria um novo usuário no sistema.
+Cria um novo usuário no sistema e o vincula a um cliente específico para controle de acesso.
 
 **Endpoint**: `POST /api/users`
 
@@ -35,7 +35,8 @@ Cria um novo usuário no sistema.
 {
   "email": "usuario@exemplo.com",
   "password": "senhaSegura123",
-  "name": "Usuário de Exemplo"
+  "name": "Usuário de Exemplo",
+  "clientId": "meu-cliente-oidc"
 }
 ```
 
@@ -45,8 +46,20 @@ Cria um novo usuário no sistema.
 | `email` | string | Sim | Email válido do usuário |
 | `password` | string | Sim | Senha com mínimo 6 caracteres |
 | `name` | string | Não | Nome do usuário |
+| `clientId` | string | Sim | ID do cliente OIDC ao qual o usuário será vinculado |
 
-**Respostas de Sucesso** (`201 Created`):
+**Comportamento Idempotente**:
+
+A API possui comportamento idempotente para facilitar integrações:
+
+| Cenário | Status HTTP | Descrição |
+|---------|-------------|-----------|
+| Usuário novo | `201 Created` | Usuário criado e vinculado ao cliente |
+| Usuário existe, senha correta, sem vínculo | `200 OK` | Vínculo criado (`isNewLink: true`) |
+| Usuário existe, senha correta, já vinculado | `200 OK` | Sem alterações (`isNewLink: false`) |
+| Usuário existe, senha incorreta | `401 Unauthorized` | Erro de credenciais |
+
+**Respostas de Sucesso** (`201 Created` - Novo usuário):
 ```json
 {
   "id": "123e4567-e89b-12d3-a456-426614174000",
@@ -55,7 +68,24 @@ Cria um novo usuário no sistema.
   "role": "USER",
   "emailVerified": false,
   "createdAt": "2026-02-21T12:00:00.000Z",
-  "updatedAt": "2026-02-21T12:00:00.000Z"
+  "updatedAt": "2026-02-21T12:00:00.000Z",
+  "linkedToClient": true,
+  "isNewLink": true
+}
+```
+
+**Respostas de Sucesso** (`200 OK` - Usuário existente vinculado):
+```json
+{
+  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "email": "usuario@exemplo.com",
+  "name": "Usuário de Exemplo",
+  "role": "USER",
+  "emailVerified": false,
+  "createdAt": "2026-02-21T12:00:00.000Z",
+  "updatedAt": "2026-02-21T12:00:00.000Z",
+  "linkedToClient": true,
+  "isNewLink": true
 }
 ```
 
@@ -66,6 +96,22 @@ Cria um novo usuário no sistema.
 {
   "error": "Missing required fields",
   "message": "email and password are required"
+}
+```
+
+- `400 Bad Request` - clientId faltando
+```json
+{
+  "error": "Missing required field",
+  "message": "clientId is required for user-client association"
+}
+```
+
+- `400 Bad Request` - Cliente não encontrado
+```json
+{
+  "error": "Invalid client",
+  "message": "The specified client does not exist"
 }
 ```
 
@@ -85,11 +131,11 @@ Cria um novo usuário no sistema.
 }
 ```
 
-- `409 Conflict` - Usuário já existe
+- `401 Unauthorized` - Senha incorreta para usuário existente
 ```json
 {
-  "error": "User already exists",
-  "message": "A user with this email already exists"
+  "error": "Invalid credentials",
+  "message": "A user with this email already exists but the password is incorrect"
 }
 ```
 
@@ -120,7 +166,8 @@ curl -X POST http://localhost:3000/api/users \
   -d '{
     "email": "usuario@exemplo.com",
     "password": "senhaSegura123",
-    "name": "Usuário de Exemplo"
+    "name": "Usuário de Exemplo",
+    "clientId": "meu-cliente-oidc"
   }'
 ```
 
@@ -136,7 +183,8 @@ const response = await fetch('http://localhost:3000/api/users', {
   body: JSON.stringify({
     email: 'usuario@exemplo.com',
     password: 'senhaSegura123',
-    name: 'Usuário de Exemplo'
+    name: 'Usuário de Exemplo',
+    clientId: 'meu-cliente-oidc'
   })
 });
 
@@ -157,7 +205,8 @@ headers = {
 data = {
     'email': 'usuario@exemplo.com',
     'password': 'senhaSegura123',
-    'name': 'Usuário de Exemplo'
+    'name': 'Usuário de Exemplo',
+    'clientId': 'meu-cliente-oidc'
 }
 
 response = requests.post('http://localhost:3000/api/users', headers=headers, json=data)
@@ -180,7 +229,8 @@ A API realiza as seguintes validações no lado do servidor:
 
 - **Email**: Formato válido usando regex `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`
 - **Senha**: Mínimo de 6 caracteres
-- **Unicidade**: Verificação de email duplicado
+- **clientId**: Verifica se o cliente existe no sistema
+- **Vínculo usuário-cliente**: Verifica duplicatas antes de criar vínculo
 
 ### Retry e Error Handling
 
@@ -202,15 +252,18 @@ async function createUserWithRetry(userData, maxRetries = 3) {
       }
 
       const error = await response.json();
-      if (response.status === 409) {
-        // Usuário já existe - não retry
-        throw new Error(error.message);
-      }
+      
+      // Erros que não devem ser retentados
       if (response.status === 400) {
         // Erro de validação - não retry
+        throw new Error(error.message);
+      }
+      if (response.status === 401) {
+        // Credenciais incorretas ou chave inválida - não retry
+        throw new Error(error.message);
       }
 
-      // Aguarde antes de retry
+      // Aguarde antes de retry para erros transitórios
       if (i < maxRetries - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
       }
@@ -219,6 +272,75 @@ async function createUserWithRetry(userData, maxRetries = 3) {
     }
   }
 }
+```
+
+## Controle de Acesso Granular
+
+O Janus IdP implementa um sistema de controle de acesso granular que vincula usuários a clientes específicos. Isso garante que cada usuário só possa acessar as aplicações cliente às quais foi explicitamente autorizado.
+
+### Como Funciona
+
+1. **Criação de Usuário**: Ao criar um usuário via API, o campo `clientId` é obrigatório e define qual cliente o usuário poderá acessar
+2. **Vínculo Múltiplo**: Um usuário pode ser vinculado a múltiplos clientes através de múltiplas chamadas à API
+3. **Verificação no Login**: Durante o fluxo OIDC, o sistema verifica se o usuário tem permissão para acessar o cliente solicitante
+
+### Exemplo de Múltiplos Vínculos
+
+```javascript
+// Primeiro vínculo - cria o usuário
+await fetch('http://localhost:3000/api/users', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Service-Key': 'your_service_api_key'
+  },
+  body: JSON.stringify({
+    email: 'usuario@exemplo.com',
+    password: 'senhaSegura123',
+    name: 'Usuário de Exemplo',
+    clientId: 'cliente-app-1'
+  })
+});
+// Retorno: 201 Created, isNewLink: true
+
+// Segundo vínculo - adiciona acesso a outro cliente
+await fetch('http://localhost:3000/api/users', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Service-Key': 'your_service_api_key'
+  },
+  body: JSON.stringify({
+    email: 'usuario@exemplo.com',
+    password: 'senhaSegura123',
+    clientId: 'cliente-app-2'
+  })
+});
+// Retorno: 200 OK, isNewLink: true
+
+// Tentativa duplicada - idempotente
+await fetch('http://localhost:3000/api/users', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Service-Key': 'your_service_api_key'
+  },
+  body: JSON.stringify({
+    email: 'usuario@exemplo.com',
+    password: 'senhaSegura123',
+    clientId: 'cliente-app-2'
+  })
+});
+// Retorno: 200 OK, isNewLink: false (já vinculado)
+```
+
+### Erro de Acesso Negado
+
+Se um usuário tentar fazer login em uma aplicação cliente à qual não está vinculado, ele verá uma mensagem de erro:
+
+```
+Access Denied
+Você não tem permissão para acessar esta aplicação. Entre em contato com o administrador para solicitar acesso.
 ```
 
 ## Endpoints Internos (Admin)

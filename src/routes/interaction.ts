@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { Provider } from 'oidc-provider';
 import { db } from '../adapter';
 import { schema } from '../db';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import * as bcrypt from 'bcryptjs';
 import { renderView } from '../utils/renderer';
 import { Login } from '../views/oidc/Login';
@@ -11,7 +11,7 @@ import { Error as ErrorView } from '../views/oidc/Error';
 
 const router = Router();
 
-const { users } = schema;
+const { users, userClients } = schema;
 
 /**
  * Cria um router Express para lidar com as interações de login e consentimento.
@@ -112,6 +112,7 @@ export default function interactionRoutes(oidc: Provider): Router {
 
   /**
    * Rota para submissão do formulário de login
+   * Implementa verificação de autorização: usuário deve estar vinculado ao cliente
    */
   router.post('/interaction/:uid/login', async (req: Request, res: Response, next) => {
     try {
@@ -165,6 +166,34 @@ export default function interactionRoutes(oidc: Provider): Router {
         }, { title: 'Sign in' });
       }
 
+      // ========================================
+      // VERIFICAÇÃO DE AUTORIZAÇÃO DE ACESSO
+      // Verifica se o usuário tem permissão para acessar este cliente específico
+      // ========================================
+      const userClientLink = await db.select()
+        .from(userClients)
+        .where(and(
+          eq(userClients.userId, user.id),
+          eq(userClients.clientId, client.clientId)
+        ))
+        .limit(1);
+
+      // Se não houver vínculo, o usuário não tem permissão para acessar esta aplicação
+      if (userClientLink.length === 0) {
+        console.log(`[Interaction] Access denied: User ${user.email} not authorized for client ${client.clientId}`);
+        
+        return renderView(res, ErrorView, {
+          error: 'Access Denied',
+          message: 'Você não tem permissão para acessar esta aplicação. Entre em contato com o administrador para solicitar acesso.',
+        }, {
+          title: 'Access Denied',
+          componentName: 'Error',
+          enableHydration: true
+        });
+      }
+
+      console.log(`[Interaction] Access granted: User ${user.email} authorized for client ${client.clientId}`);
+
       // Cria o resultado da interação de login
       const result2 = {
         login: {
@@ -180,6 +209,7 @@ export default function interactionRoutes(oidc: Provider): Router {
       // Finaliza a interação com sucesso
       await oidc.interactionFinished(req, res, result2, { mergeWithLastSubmission: false });
     } catch (err) {
+      console.error('[Interaction] Error during login:', err);
       next(err);
     }
   });

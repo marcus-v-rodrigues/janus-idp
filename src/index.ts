@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import session from 'express-session';
 import { DrizzleAdapter, db } from './adapter';
 import { schema } from './db';
+import { eq } from 'drizzle-orm';
 import interactionRoutes from './routes/interaction';
 import adminRoutes from './routes/admin';
 import apiRoutes from './routes/api';
@@ -47,6 +48,144 @@ async function startServer() {
     clients: clientsConfig as any,
     // O servidor aceita dinamicamente qualquer escopo que clientes possuam
     scopes: Array.from(supportedScopes),
+    // Configuração para carregar Grants existentes e evitar loops de interação
+    loadExistingGrant: async (ctx) => {
+      console.log('[loadExistingGrant] Hook chamado');
+      
+      // Tenta obter o grantId do resultado da interação ou da sessão
+      const grantId = ctx.oidc.result?.consent?.grantId;
+      console.log(`[loadExistingGrant] grantId do resultado: ${grantId}`);
+      
+      // Se temos um grantId, tenta encontrar o Grant existente
+      if (grantId) {
+        const grant = await ctx.oidc.provider.Grant.find(grantId);
+        if (grant) {
+          console.log(`[loadExistingGrant] Grant encontrado: ${grantId}`);
+          return grant;
+        }
+        console.log(`[loadExistingGrant] Grant não encontrado: ${grantId}`);
+      }
+      
+      // OTIMIZAÇÃO: Busca Grants existentes no banco de dados antes de criar um novo
+      // Isso evita a inflação de registros de Grant durante redirecionamentos
+      const accountId = ctx.oidc.session?.accountId;
+      const clientId = ctx.oidc.client?.clientId;
+      
+      console.log(`[loadExistingGrant] accountId: ${accountId}, clientId: ${clientId}`);
+      
+      if (accountId && clientId) {
+        // Busca todos os Grants do tipo 'Grant' no banco de dados
+        // Filtra por accountId e clientId no payload
+        const existingGrants = await db.select()
+          .from(schema.oidcPayloads)
+          .where(eq(schema.oidcPayloads.type, 'Grant'));
+        
+        // Procura um Grant existente que corresponda ao accountId e clientId
+        for (const grantRecord of existingGrants) {
+          const payload = grantRecord.payload as any;
+          if (payload.accountId === accountId && payload.clientId === clientId) {
+            // Verifica se o Grant não expirou
+            if (!grantRecord.expiresAt || grantRecord.expiresAt > new Date()) {
+              console.log(`[loadExistingGrant] Grant existente encontrado no banco: ${grantRecord.id}`);
+              // Carrega o Grant usando o provider
+              const grant = await ctx.oidc.provider.Grant.find(grantRecord.id);
+              if (grant) {
+                console.log(`[loadExistingGrant] Reutilizando Grant existente: ${grantRecord.id}`);
+                return grant;
+              }
+            }
+          }
+        }
+        
+        // Se não encontrou um Grant existente, cria um novo automaticamente
+        // Isso é necessário para o fluxo de auto-consent funcionar corretamente
+        // e evitar o erro "SessionNotFound: invalid_request"
+        console.log(`[loadExistingGrant] Nenhum Grant existente encontrado, criando novo`);
+        
+        // Cria um novo Grant vazio
+        // O oidc-provider vai adicionar os escopos automaticamente quando necessário
+        const grant = new ctx.oidc.provider.Grant({
+          accountId,
+          clientId,
+        });
+        
+        // Salva o Grant e retorna
+        const newGrantId = await grant.save();
+        console.log(`[loadExistingGrant] Novo Grant criado: ${newGrantId}`);
+        return grant;
+      }
+      
+      console.log('[loadExistingGrant] Retornando undefined (nenhum Grant criado)');
+      return undefined;
+    },
+    // Função customizada para renderizar erros e capturar informações de debug
+    renderError: async (ctx, out, error) => {
+      console.error('[OIDC] renderError chamado:', {
+        error: error,
+        errorName: error.name,
+        errorMessage: error.message,
+        errorStack: error.stack,
+        oidc: ctx.oidc,
+        out: out,
+      });
+
+      // Informações de depuração adicionais para SessionNotFound
+      let debugInfo = '';
+      if (error.name === 'SessionNotFound') {
+        // Acessa error_description de forma segura usando type assertion
+        const errorDesc = (error as any).error_description || 'N/A';
+        
+        debugInfo = `
+          <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px;">
+            <h3 style="margin-top: 0; color: #856404;">🔍 Informações de Depuração - SessionNotFound</h3>
+            <p><strong>Causa provável:</strong> A sessão de autorização expirou ou não foi encontrada.</p>
+            <p><strong>Soluções possíveis:</strong></p>
+            <ul>
+              <li>Tente fazer login novamente</li>
+              <li>Verifique se os cookies estão habilitados no navegador</li>
+              <li>Verifique se não há bloqueadores de pop-up ou redirecionamento</li>
+              <li>Se o problema persistir, entre em contato com o administrador</li>
+            </ul>
+            <p><strong>Detalhes técnicos:</strong></p>
+            <ul>
+              <li>Erro: ${error.message}</li>
+              <li>Descrição: ${errorDesc}</li>
+              ${ctx.oidc.session ? `<li>Sessão UID: ${ctx.oidc.session.uid}</li>` : '<li>Sessão: não encontrada</li>'}
+              ${ctx.oidc.session?.accountId ? `<li>Account ID: ${ctx.oidc.session.accountId}</li>` : ''}
+            </ul>
+          </div>
+        `;
+      }
+
+      // Renderiza a página de erro padrão do oidc-provider
+      ctx.body = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Error</title>
+          <style>
+            body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+            .error { background: #fee; border: 1px solid #fcc; padding: 20px; border-radius: 4px; }
+            .error h1 { color: #c33; margin-top: 0; }
+            .error pre { background: #f5f5f5; padding: 10px; overflow: auto; }
+            .error ul { margin: 10px 0; padding-left: 20px; }
+            .error li { margin: 5px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="error">
+            <h1>Authentication Error</h1>
+            <p><strong>Error:</strong> ${error.name}</p>
+            <p><strong>Message:</strong> ${error.message}</p>
+            ${debugInfo}
+            ${error.stack ? `<pre>${error.stack}</pre>` : ''}
+            <p><a href="/admin">Return to Admin Portal</a></p>
+          </div>
+        </body>
+        </html>
+      `;
+      ctx.status = 500;
+    },
     cookies: {
       keys: (process.env.COOKIE_KEYS || 'uma_chave_secreta_para_dev_1,uma_chave_secreta_para_dev_2').split(','),
       // Configurações de cookies para desenvolvimento e produção
@@ -84,6 +223,36 @@ async function startServer() {
       devInteractions: { enabled: false },
       introspection: { enabled: true },
       revocation: { enabled: true },
+      // Resource Indicators (RFC8707) - Necessário para emitir JWTs em vez de opaque tokens
+      // Quando habilitado, permite configurar o formato do access token como JWT
+      resourceIndicators: {
+        enabled: true,
+        // Define um recurso padrão quando o cliente não especifica um
+        // Isso garante que JWTs sejam emitidos mesmo sem o parâmetro 'resource'
+        defaultResource: async (ctx, client, oneOf) => {
+          // Retorna um resource indicator padrão baseado no issuer
+          // Isso permite que access tokens JWT sejam emitidos sem parâmetro resource explícito
+          return `${issuer}/api`;
+        },
+        // Retorna a configuração do Resource Server para o escopo solicitado
+        // Configura todos os access tokens como JWT por padrão
+        getResourceServerInfo: async (ctx, resourceIndicator, client) => {
+          return {
+            scope: Array.from(supportedScopes).join(' '),
+            // IMPORTANTE: Define o formato do access token como JWT
+            // Isso faz com que o UX Auditor consiga validar o token
+            accessTokenFormat: 'jwt',
+            // Configuração da assinatura JWT usando RS256 (mesmo algoritmo das chaves JWKS)
+            jwt: {
+              sign: { alg: 'RS256' },
+            },
+          };
+        },
+        // Usa o recurso concedido quando disponível
+        useGrantedResource: async (ctx, model) => {
+          return true;
+        },
+      },
     },
     interactions: {
       url(ctx, interaction) {
@@ -156,6 +325,34 @@ async function startServer() {
   // Listener para capturar erros do servidor OIDC
   oidc.on('server_error', (ctx, error) => {
     console.error('[OIDC] Server Error:', error);
+    console.error('[OIDC] Server Error Details:', {
+      error: error,
+      message: error.message,
+      stack: error.stack,
+      oidc: ctx.oidc,
+    });
+  });
+
+  // Listener para capturar erros de autorização
+  oidc.on('authorization.error', (ctx, error) => {
+    console.error('[OIDC] Authorization Error:', error);
+    console.error('[OIDC] Authorization Error Details:', {
+      error: error,
+      message: error.message,
+      stack: error.stack,
+      oidc: ctx.oidc,
+    });
+  });
+
+  // Listener para capturar eventos de concessão (grant) com erro
+  oidc.on('grant.error', (ctx, error) => {
+    console.error('[OIDC] Grant error:', error);
+    console.error('[OIDC] Grant Error Details:', {
+      error: error,
+      message: error.message,
+      stack: error.stack,
+      oidc: ctx.oidc,
+    });
   });
 
   /**

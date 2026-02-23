@@ -30,30 +30,41 @@ export class DrizzleAdapter implements Adapter {
   async upsert(id: string, payload: AdapterPayload, expiresIn: number): Promise<void> {
     const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
 
+    // Log detalhado para depuração de problemas de sincronização
+    console.log(`[DrizzleAdapter] upsert chamado: type=${this.name}, id=${id}, expiresIn=${expiresIn}s`);
+
     const existing = await db.select().from(oidcPayloads).where(eq(oidcPayloads.id, id)).limit(1);
 
+    // Para Grants, o grantId é o próprio ID do Grant (o jti no payload)
+    // Isso permite que o oidc-provider encontre o Grant posteriormente
+    const grantId = this.name === 'Grant' ? id : payload.grantId;
+
     if (existing.length > 0) {
+      console.log(`[DrizzleAdapter] Atualizando payload existente: ${id}`);
       await db
         .update(oidcPayloads)
         .set({
           payload: payload as Record<string, any>,
           expiresAt,
-          grantId: payload.grantId,
+          grantId,
           userCode: payload.userCode,
           uid: payload.uid,
           updatedAt: new Date(),
         })
         .where(eq(oidcPayloads.id, id));
+      console.log(`[DrizzleAdapter] Payload atualizado com sucesso: ${id}`);
     } else {
+      console.log(`[DrizzleAdapter] Criando novo payload: ${id}`);
       await db.insert(oidcPayloads).values({
         id,
         type: this.name,
         payload: payload as Record<string, any>,
-        grantId: payload.grantId,
+        grantId,
         userCode: payload.userCode,
         uid: payload.uid,
         expiresAt,
       });
+      console.log(`[DrizzleAdapter] Payload criado com sucesso: ${id}`);
     }
   }
 
@@ -65,20 +76,24 @@ export class DrizzleAdapter implements Adapter {
    * @returns Os dados do payload ou undefined se não encontrado/expirado
    */
   async find(id: string): Promise<AdapterPayload | undefined> {
+    console.log(`[DrizzleAdapter] find chamado: type=${this.name}, id=${id}`);
     const docs = await db.select().from(oidcPayloads).where(eq(oidcPayloads.id, id)).limit(1);
     const doc = docs[0];
 
     if (!doc) {
+      console.log(`[DrizzleAdapter] Payload não encontrado: ${id}`);
       return undefined;
     }
 
     // Verifica se o payload expirou
     if (doc.expiresAt && doc.expiresAt < new Date()) {
+      console.log(`[DrizzleAdapter] Payload expirado: ${id}, expiresAt=${doc.expiresAt.toISOString()}`);
       // Remove o payload expirado
       await this.destroy(id);
       return undefined;
     }
 
+    console.log(`[DrizzleAdapter] Payload encontrado: ${id}, type=${doc.type}`);
     return doc.payload as AdapterPayload;
   }
 

@@ -1,10 +1,10 @@
 import 'dotenv/config';
 import { db } from '../src/db';
 import { schema } from '../src/db';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import * as bcrypt from 'bcryptjs';
 
-const { users, clients } = schema;
+const { users, clients, userClients } = schema;
 
 /**
  * Faz hash de uma senha usando bcrypt
@@ -136,6 +136,50 @@ async function seedClients(): Promise<void> {
   // ============================================================================
 }
 
+/**
+ * Popula os vínculos entre usuários e clientes
+ * Esta função é idempotente - ela só criará vínculos que não existem
+ */
+async function seedUserClients(): Promise<void> {
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@seudominio.com';
+  const testClientId = process.env.OIDC_CLIENT_ID || 'test-client';
+  const auditorClientId = process.env.UX_CLIENT_ID || 'ux-auditor';
+
+  // Busca o usuário admin
+  const adminResult = await db.select().from(users).where(eq(users.email, adminEmail)).limit(1);
+  const adminUser = adminResult[0];
+
+  if (!adminUser) {
+    console.log('⚠️  Usuário admin não encontrado. Execute o seed de usuários primeiro.');
+    return;
+  }
+
+  // Lista de clientes para vincular ao usuário admin
+  const clientIds = [testClientId, auditorClientId];
+
+  for (const clientId of clientIds) {
+    // Verifica se o vínculo já existe
+    const existingLink = await db.select()
+      .from(userClients)
+      .where(and(
+        eq(userClients.userId, adminUser.id),
+        eq(userClients.clientId, clientId)
+      ))
+      .limit(1);
+
+    if (existingLink.length === 0) {
+      // Cria o vínculo
+      await db.insert(userClients).values({
+        userId: adminUser.id,
+        clientId: clientId,
+      });
+      console.log(`✓ Vínculo criado: usuário ${adminEmail} -> cliente ${clientId}`);
+    } else {
+      console.log(`✓ Vínculo já existe: usuário ${adminEmail} -> cliente ${clientId}`);
+    }
+  }
+}
+
 async function main() {
   console.log('🌱 Iniciando seed do banco de dados...\n');
 
@@ -150,6 +194,10 @@ async function main() {
 
   // Popula os clientes
   await seedClients();
+  console.log('');
+
+  // Popula os vínculos entre usuários e clientes
+  // await seedUserClients();
   console.log('');
 
   console.log('✅ Seed concluído com sucesso!');

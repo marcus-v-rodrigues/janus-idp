@@ -11,13 +11,52 @@ import { Error as ErrorView } from '../views/oidc/Error';
 
 const router = Router();
 
-const { users, userClients } = schema;
+const { users, userClients, oidcPayloads } = schema;
 
 /**
  * Escopos OIDC permitidos para consentimento.
  * Inclui offline_access para suportar Refresh Tokens.
  */
 const ALLOWED_OIDC_SCOPES = ['openid', 'profile', 'email', 'offline_access'];
+
+/**
+ * Conjunto em memória para rastrear UIDs de interação que já foram processados
+ * para evitar loops de redirecionamento no auto-consent.
+ * 
+ * Importante: Este é um mecanismo de proteção contra re-submissão no curto prazo.
+ * Os UIDs são removidos após 5 minutos para evitar vazamento de memória.
+ */
+const processedAutoConsentUids = new Map<string, NodeJS.Timeout>();
+
+/**
+ * Marca um UID como processado para auto-consent.
+ * Remove a marca após 5 minutos para limpeza automática.
+ */
+function markAutoConsentProcessed(uid: string): void {
+  // Remove o timeout anterior se existir (re-submissão rápida)
+  if (processedAutoConsentUids.has(uid)) {
+    const existingTimeout = processedAutoConsentUids.get(uid);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+  }
+
+  // Define um novo timeout para limpar o UID após 5 minutos
+  const timeout = setTimeout(() => {
+    processedAutoConsentUids.delete(uid);
+    console.log(`[Interaction] UID ${uid} removido do cache de auto-consent (expirado)`);
+  }, 5 * 60 * 1000); // 5 minutos
+
+  processedAutoConsentUids.set(uid, timeout);
+  console.log(`[Interaction] UID ${uid} marcado como processado para auto-consent`);
+}
+
+/**
+ * Verifica se um UID já foi processado para auto-consent.
+ */
+function isAutoConsentProcessed(uid: string): boolean {
+  return processedAutoConsentUids.has(uid);
+}
 
 /**
  * Cria um router Express para lidar com as interações de login e consentimento.
@@ -79,58 +118,81 @@ export default function interactionRoutes(oidc: Provider): Router {
             // O prompt.details contém missingOIDCScope, missingOIDCClaims, etc.
             const missingOIDCScope = (prompt.details as any)?.missingOIDCScope || [];
             const missingOIDCClaims = (prompt.details as any)?.missingOIDCClaims || [];
+            const missingResourceScopes = (prompt.details as any)?.missingResourceScopes || {};
             
             console.log(`[Interaction] Escopos faltando: ${missingOIDCScope.join(', ') || 'nenhum'}`);
             console.log(`[Interaction] Claims faltando: ${missingOIDCClaims.join(', ') || 'nenhum'}`);
 
-            // Se não há escopos faltando, podemos finalizar sem criar um novo Grant
-            // Isso acontece quando o usuário já consentiu anteriormente
-            if (missingOIDCScope.length === 0 && missingOIDCClaims.length === 0) {
-              console.log(`[Interaction] Nenhum escopo ou claim novo para consentir, finalizando...`);
-              // Retorna apenas consent vazio para indicar que não há nada novo a consentir
-              return oidc.interactionFinished(req, res, { consent: {} }, { mergeWithLastSubmission: true });
+            // SOLUÇÃO: Cria um Grant explicitamente no auto-consent com os escopos necessários
+            // Isso impede o loop porque o Grant já terá os escopos consentidos
+            let grant;
+            
+            // Tenta encontrar um Grant existente para este usuário/cliente
+            const existingGrants = await db.select()
+              .from(oidcPayloads)
+              .where(eq(oidcPayloads.type, 'Grant'));
+            
+            for (const grantRecord of existingGrants) {
+              const payload = grantRecord.payload as any;
+              if (payload.accountId === session.accountId && payload.clientId === client.clientId) {
+                if (!grantRecord.expiresAt || grantRecord.expiresAt > new Date()) {
+                  console.log(`[Interaction] Grant existente encontrado: ${grantRecord.id}`);
+                  grant = await oidc.Grant.find(grantRecord.id);
+                  if (grant) break;
+                }
+              }
             }
 
-            // Cria um novo objeto Grant para o oidc-provider 9.x
-            // O Grant é necessário para rastrear os escopos consentidos
-            // Acessa o Grant através da instância do Provider
-            const grant = new oidc.Grant({
-              accountId: session.accountId,
-              clientId: client.clientId,
-            });
+            // Se não encontrou, cria um novo Grant
+            if (!grant) {
+              console.log(`[Interaction] Criando novo Grant para auto-consent`);
+              grant = new oidc.Grant({
+                accountId: session.accountId,
+                clientId: client.clientId,
+              });
+            }
 
             // Adiciona os escopos OIDC que estão faltando
             if (missingOIDCScope.length > 0) {
-              // Filtra apenas os escopos permitidos
               const allowedScopes = missingOIDCScope.filter((s: string) => ALLOWED_OIDC_SCOPES.includes(s));
-              // Adiciona todos os escopos de uma vez (mais eficiente)
               if (allowedScopes.length > 0) {
                 grant.addOIDCScope(allowedScopes.join(' '));
-                console.log(`[Interaction] Escopos adicionados ao Grant: ${allowedScopes.join(', ')}`);
+                console.log(`[Interaction] Escopos consentidos: ${allowedScopes.join(', ')}`);
               }
             }
 
             // Adiciona as claims OIDC que estão faltando
             if (missingOIDCClaims.length > 0) {
               grant.addOIDCClaims(missingOIDCClaims);
-              console.log(`[Interaction] Claims adicionados ao Grant: ${missingOIDCClaims.join(', ')}`);
+              console.log(`[Interaction] Claims consentidos: ${missingOIDCClaims.join(', ')}`);
             }
 
-            // Salva o Grant no armazenamento e obtém o grantId
-            const grantId = await grant.save();
-            console.log(`[Interaction] Grant salvo com ID: ${grantId}`);
+            // Adiciona os escopos de recursos (Resource Indicators)
+            if (Object.keys(missingResourceScopes).length > 0) {
+              for (const [indicator, scopes] of Object.entries(missingResourceScopes)) {
+                grant.addResourceScope(indicator, (scopes as string[]).join(' '));
+                console.log(`[Interaction] Resource scopes para ${indicator}: ${(scopes as string[]).join(', ')}`);
+              }
+            }
+
+            // Salva o Grant e obtém o grantId
+            const newGrantId = await grant.save();
+            console.log(`[Interaction] Grant salvo com ID: ${newGrantId}`);
+            
             console.log(`[Interaction] Finalizando auto-consent para uid: ${uid}`);
 
             // Finaliza a interação retornando o grantId no objeto consent
-            // mergeWithLastSubmission: true é importante para preservar o estado do login
+            // Isso é crucial para que o oidc-provider não tente criar um novo Grant
             const consentResult = {
               consent: {
-                grantId,
+                grantId: newGrantId,
               },
             };
 
             console.log(`[Interaction] Chamando interactionFinished para auto-consent...`);
-            return oidc.interactionFinished(req, res, consentResult, { mergeWithLastSubmission: true });
+            await oidc.interactionFinished(req, res, consentResult, { mergeWithLastSubmission: true });
+            console.log(`[Interaction] interactionFinished executado com sucesso`);
+            return;
           }
 
           // Caso contrário, mostra a tela de consentimento usando React

@@ -105,8 +105,8 @@ WHERE NOT EXISTS (
 	SELECT 1 FROM "Role" WHERE "scopeKey" = 'GLOBAL' AND "code" = 'janus_admin'
 );--> statement-breakpoint
 INSERT INTO "Role" ("id", "name", "code", "scopeType", "scopeKey", "clientId", "description", "isSystem", "createdAt", "updatedAt")
-SELECT gen_random_uuid(), 'Membro', 'member', 'CLIENT', 'CLIENT:' || c."clientId", c."clientId", 'Papel padrão de acesso para o cliente ' || c."clientId", true, now(), now()
+SELECT gen_random_uuid(), 'Usuário', 'user', 'CLIENT', 'CLIENT:' || c."clientId", c."clientId", 'Papel padrão de acesso para o cliente ' || c."clientId", true, now(), now()
 FROM "Client" c
 WHERE NOT EXISTS (
-	SELECT 1 FROM "Role" r WHERE r."scopeKey" = 'CLIENT:' || c."clientId" AND r."code" = 'member'
+	SELECT 1 FROM "Role" r WHERE r."scopeKey" = 'CLIENT:' || c."clientId" AND r."code" = 'user'
 );--> statement-breakpoint

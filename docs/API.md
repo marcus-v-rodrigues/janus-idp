@@ -71,11 +71,11 @@ A API possui comportamento idempotente para facilitar integrações:
   "updatedAt": "2026-02-21T12:00:00.000Z",
   "globalRoles": ["user"],
   "clientRoles": [
-    { "code": "member", "clientId": "meu-cliente-oidc" }
+    { "code": "user", "clientId": "meu-cliente-oidc" }
   ],
   "assignedToClient": true,
   "created": true,
-  "clientRoleCode": "member"
+  "clientRoleCode": "user"
 }
 ```
 
@@ -91,11 +91,11 @@ A API possui comportamento idempotente para facilitar integrações:
   "updatedAt": "2026-02-21T12:00:00.000Z",
   "globalRoles": ["user"],
   "clientRoles": [
-    { "code": "member", "clientId": "meu-cliente-oidc" }
+    { "code": "user", "clientId": "meu-cliente-oidc" }
   ],
   "assignedToClient": true,
   "created": false,
-  "clientRoleCode": "member"
+  "clientRoleCode": "user"
 }
 ```
 

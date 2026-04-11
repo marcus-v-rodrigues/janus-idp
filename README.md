@@ -51,7 +51,7 @@ Janus IdP é um Identity Provider (IdP) construído com **Node.js**, **Express**
 
    **O container será iniciado automaticamente com:**
    - Usuário administrador padrão (ver credenciais nos logs)
-   - Clientes OIDC pré-configurados (OIDC Debugger e UX Auditor)
+   - Cliente OIDC pré-configurado (UX Auditor)
 
 ## 🗄️ Gerenciando o Banco de Dados (Via Docker)
 
@@ -94,13 +94,13 @@ O Janus IdP possui um portal administrativo completo para gerenciamento do siste
 - Gerenciamento de usuários (listar, resetar senha, alterar função)
 - Geração de client secrets
 
-### Configurações para o OIDC Debugger
+### Configurações do Cliente OIDC
 
 1. **Authorize URI**: `http://localhost:3000/oidc/auth`
 2. **Token URI**: `http://localhost:3000/oidc/token`
-3. **Client ID**: `test-client` (criado automaticamente pelo seed)
+3. **Client ID**: `ux-auditor` (criado automaticamente pelo seed)
 4. **Scope**: `openid profile email`
-5. **Redirect URI**: `https://oidcdebugger.com/debug`
+5. **Redirect URI**: `http://localhost:3001/api/auth/callback/janus`
 
 ### Endpoints OIDC
 

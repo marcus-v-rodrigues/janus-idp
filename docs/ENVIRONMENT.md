@@ -60,14 +60,6 @@ Estas variáveis são usadas pelo script de seed ([`drizzle/seed.ts`](drizzle/se
 
 Estas variáveis são usadas pelo script de seed para criar clientes OIDC iniciais.
 
-#### Cliente de Teste (OIDC Debugger)
-
-| Variável | Padrão | Descrição |
-|----------|--------|-----------|
-| `OIDC_CLIENT_ID` | `test-client` | Client ID do cliente de teste |
-| `OIDC_CLIENT_SECRET` | `test-secret` | Client secret do cliente de teste |
-| `OIDC_REDIRECT_URIS` | `https://oidcdebugger.com/debug` | URIs de redirecionamento (vírgula múltipla) |
-
 #### Cliente UX Auditor
 
 | Variável | Padrão | Descrição |
@@ -151,11 +143,6 @@ ADMIN_NAME=Administrador
 # ================================================================================
 # Clientes OIDC (Seed)
 # ================================================================================
-
-# Cliente de Teste (OIDC Debugger)
-OIDC_CLIENT_ID=test-client
-OIDC_CLIENT_SECRET=test-secret
-OIDC_REDIRECT_URIS=https://oidcdebugger.com/debug
 
 # Cliente UX Auditor
 UX_CLIENT_ID=ux-auditor

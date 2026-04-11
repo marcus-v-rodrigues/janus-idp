@@ -65,17 +65,10 @@ async function seedAdminUser(): Promise<void> {
 }
 
 async function seedClients(): Promise<void> {
-  const testClientId = process.env.OIDC_CLIENT_ID || 'test-client';
   const auditorClientId = process.env.UX_CLIENT_ID || 'ux-auditor';
   const baseDomain = process.env.UX_BASE_DOMAIN || 'dashboard.seudominio.com';
 
   const clientsToSeed = [
-    {
-      clientId: testClientId,
-      clientSecret: process.env.OIDC_CLIENT_SECRET || 'test-secret',
-      name: 'OIDC Debugger Client',
-      redirectUris: (process.env.OIDC_REDIRECT_URIS || 'https://oidcdebugger.com/debug').split(',').map((value) => value.trim()),
-    },
     {
       clientId: auditorClientId,
       clientSecret: process.env.UX_CLIENT_SECRET || 'janus_dashboard_secret',
@@ -103,7 +96,7 @@ async function seedClients(): Promise<void> {
       console.log(`✓ Cliente ${clientData.clientId} já existe.`);
     }
 
-    const defaultRole = await ensureClientDefaultRole(clientData.clientId, 'Membro', DEFAULT_CLIENT_ROLE_CODE);
+    const defaultRole = await ensureClientDefaultRole(clientData.clientId, 'Usuário', DEFAULT_CLIENT_ROLE_CODE);
     console.log(`✓ Papel padrão garantido para ${clientData.clientId}: ${defaultRole.code}`);
   }
 }
@@ -120,7 +113,7 @@ async function seedRoleAssignmentsForAdmin(): Promise<void> {
 
   const clientRows = await db.select().from(clients);
   for (const clientRow of clientRows) {
-    const clientRole = await ensureClientDefaultRole(clientRow.clientId, 'Membro', DEFAULT_CLIENT_ROLE_CODE);
+    const clientRole = await ensureClientDefaultRole(clientRow.clientId, 'Usuário', DEFAULT_CLIENT_ROLE_CODE);
     await ensureUserRole(adminUser.id, clientRole.id, null);
     console.log(`✓ Papel ${clientRole.code} atribuído ao admin para ${clientRow.clientId}`);
   }

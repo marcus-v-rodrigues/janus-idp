@@ -198,7 +198,7 @@ router.post('/clients', ensureAdmin, async (req: Request, res: Response) => {
       await db.update(clients).set(data).where(eq(clients.id, id));
     } else {
       await db.insert(clients).values(data);
-      await ensureClientDefaultRole(clientId, 'Membro', DEFAULT_CLIENT_ROLE_CODE);
+      await ensureClientDefaultRole(clientId, 'Usuário', DEFAULT_CLIENT_ROLE_CODE);
     }
 
     res.redirect('/admin/clients');

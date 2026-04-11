@@ -11,7 +11,7 @@ const {
 
 export const DEFAULT_GLOBAL_USER_ROLE_CODE = 'user';
 export const JANUS_ADMIN_ROLE_CODE = 'janus_admin';
-export const DEFAULT_CLIENT_ROLE_CODE = 'member';
+export const DEFAULT_CLIENT_ROLE_CODE = 'user';
 
 export type RoleScopeType = 'GLOBAL' | 'CLIENT';
 
@@ -322,7 +322,7 @@ export async function assignRoleToAllUsers(params: {
 
 export async function ensureClientDefaultRole(
   clientId: string,
-  roleName = 'Membro',
+  roleName = 'Usuário',
   code = DEFAULT_CLIENT_ROLE_CODE
 ): Promise<typeof roles.$inferSelect> {
   return ensureRoleExists({

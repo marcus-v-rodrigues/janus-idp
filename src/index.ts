@@ -408,7 +408,7 @@ async function startServer() {
     console.log(`📊 Clientes carregados do banco: ${clientsConfig.length}`);
     clientsConfig.forEach(c => console.log(`   - ${c.client_id}`));
     console.log(`\n🔐 Admin Portal: http://localhost:${port}/admin`);
-    console.log(`\nPara testar, acesse o OIDC Debugger.`);
+    console.log(`\nPara testar, use o cliente OIDC configurado (UX Auditor).`);
   });
 }
 

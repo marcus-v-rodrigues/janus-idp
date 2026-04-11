@@ -99,8 +99,10 @@ O Janus IdP possui um portal administrativo completo para gerenciamento do siste
 1. **Authorize URI**: `http://localhost:3000/oidc/auth`
 2. **Token URI**: `http://localhost:3000/oidc/token`
 3. **Client ID**: `ux-auditor` (criado automaticamente pelo seed)
-4. **Scope**: `openid profile email`
+4. **Scope**: `openid profile email offline_access`
 5. **Redirect URI**: `http://localhost:3001/api/auth/callback/janus`
+
+O cliente `ux-auditor` é configurado pelo seed com `authorization_code` e `refresh_token`, então o `offline_access` funciona de forma consistente quando o cliente o solicitar.
 
 ### Integração com NextAuth
 
@@ -160,20 +162,19 @@ const canAccessAdmin = globalRoles.includes('janus_admin');
 const canAccessClient = clientRoles.some((role) => role.clientId === 'ux-auditor');
 ```
 
-Exemplo do que o cliente recebe após login bem-sucedido:
+Exemplo do que o cliente recebe após login bem-sucedido via `userinfo` ou `id_token`:
 
 ```json
 {
-  "user": {
-    "id": "123e4567-e89b-12d3-a456-426614174000",
-    "name": "Usuário de Exemplo",
-    "email": "usuario@exemplo.com",
-    "roles": {
-      "global": ["user"],
-      "client": [
-        { "code": "user", "clientId": "ux-auditor" }
-      ]
-    }
+  "sub": "123e4567-e89b-12d3-a456-426614174000",
+  "name": "Usuário de Exemplo",
+  "email": "usuario@exemplo.com",
+  "email_verified": true,
+  "roles": {
+    "global": ["user"],
+    "client": [
+      { "code": "user", "clientId": "ux-auditor" }
+    ]
   }
 }
 ```

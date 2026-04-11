@@ -337,7 +337,7 @@ await fetch('http://localhost:3000/api/users', {
 
 ### Claims OIDC
 
-Quando o cliente solicita o escopo `profile`, o Janus inclui uma claim `roles` com a seguinte estrutura:
+Quando o cliente solicita o escopo `profile`, o Janus inclui uma claim `roles` com a seguinte estrutura canônica em `id_token` e `userinfo`:
 
 ```json
 {
@@ -351,6 +351,8 @@ Quando o cliente solicita o escopo `profile`, o Janus inclui uma claim `roles` c
 ```
 
 O cliente deve usar essas claims para decidir acesso a páginas, rotas e recursos.
+
+O `access_token` não é o contrato de autorização de UI. Para consumo por clientes OIDC, a fonte canônica é `id_token` ou `userinfo`.
 
 ### Acesso Negado no Cliente
 
@@ -411,7 +413,13 @@ Exemplo de retorno do `GET /oidc/userinfo`:
   "sub": "123e4567-e89b-12d3-a456-426614174000",
   "name": "Usuário de Exemplo",
   "email": "usuario@exemplo.com",
-  "email_verified": true
+  "email_verified": true,
+  "roles": {
+    "global": ["user"],
+    "client": [
+      { "code": "user", "clientId": "ux-auditor" }
+    ]
+  }
 }
 ```
 

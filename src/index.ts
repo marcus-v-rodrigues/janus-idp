@@ -388,6 +388,60 @@ async function startServer() {
       // Deixa passar para os parsers do Express processarem
       return next();
     }
+
+    if (req.path === '/userinfo') {
+      console.log('[OIDC][HTTP][userinfo] request', {
+        method: req.method,
+        url: req.originalUrl,
+        ip: req.ip,
+        userAgent: req.get('user-agent') ?? null,
+      });
+
+      const chunks: Buffer[] = [];
+      const originalWrite = res.write.bind(res);
+      const originalEnd = res.end.bind(res);
+
+      (res as any).write = (chunk: any, encoding?: any, callback?: any) => {
+        if (chunk) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding));
+        }
+
+        return originalWrite(chunk, encoding, callback);
+      };
+
+      (res as any).end = (chunk?: any, encoding?: any, callback?: any) => {
+        if (chunk) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding));
+        }
+
+        const responseBody = Buffer.concat(chunks).toString('utf8');
+        const contentType = res.getHeader('content-type') ?? null;
+        const responseSummary: Record<string, unknown> = {
+          bodyLength: responseBody.length,
+        };
+
+        if (typeof contentType === 'string' && contentType.includes('application/json') && responseBody) {
+          try {
+            const parsed = JSON.parse(responseBody) as Record<string, unknown>;
+            responseSummary.keys = Object.keys(parsed);
+            responseSummary.hasRoles = Object.prototype.hasOwnProperty.call(parsed, 'roles');
+          } catch {
+            responseSummary.parseable = false;
+          }
+        } else if (responseBody) {
+          responseSummary.responseKind = contentType;
+        }
+
+        console.log('[OIDC][HTTP][userinfo] response', {
+          statusCode: res.statusCode,
+          contentType,
+          ...responseSummary,
+        });
+
+        return originalEnd(chunk, encoding, callback);
+      };
+    }
+
     // Para demais rotas OIDC, delega diretamente ao provider
     // O oidc-provider vai processar o corpo da requisição nativamente
     // Não passamos 'next' pois o callback é um middleware final

@@ -3,8 +3,50 @@ import { db } from '../adapter';
 import { schema } from '../db';
 import { eq } from 'drizzle-orm';
 import { getUserRoles } from './rbac';
+import {
+  buildCanonicalRoleClaims,
+  summarizeCanonicalRoleClaims,
+  type CanonicalRoleClaims,
+} from './oidcClaims';
 
 const { users } = schema;
+
+function parseScopes(scope: string): Set<string> {
+  return new Set(
+    scope
+      .split(/\s+/)
+      .map((item) => item.trim())
+      .filter(Boolean),
+  );
+}
+
+function shouldEmitRoles(use: string, scopes: Set<string>): boolean {
+  return (use === 'id_token' || use === 'userinfo') && scopes.has('profile');
+}
+
+function buildClaimLog(input: {
+  accountId: string;
+  clientId: string | null;
+  use: string;
+  scope: string;
+  scopes: Set<string>;
+  result: AccountClaims;
+  roles: CanonicalRoleClaims;
+}) {
+  const emitRoles = shouldEmitRoles(input.use, input.scopes);
+
+  return {
+    accountId: input.accountId,
+    clientId: input.clientId,
+    use: input.use,
+    requestedScope: input.scope,
+    requestedScopes: Array.from(input.scopes),
+    emitRoles,
+    claimKeys: Object.keys(input.result),
+    roles: emitRoles ? summarizeCanonicalRoleClaims(input.roles) : null,
+    reason: emitRoles ? 'profile scope present' : 'profile scope missing or unsupported use',
+  };
+}
 
 /**
  * Localiza a conta associada ao `sub` informado.
@@ -24,15 +66,8 @@ export async function findAccount(
     }
 
     const userRoles = await getUserRoles(user.id);
-    const globalRoles = userRoles.filter((role) => role.scopeType === 'GLOBAL').map((role) => role.code);
     const requestedClientId = ctx.oidc?.client?.clientId ?? token?.clientId ?? null;
-    const clientRoles = userRoles
-      .filter((role) => role.scopeType === 'CLIENT')
-      .filter((role) => !requestedClientId || role.clientId === requestedClientId)
-      .map((role) => ({
-        code: role.code,
-        clientId: role.clientId,
-      }));
+    const roleClaims = buildCanonicalRoleClaims(userRoles, requestedClientId);
 
     return {
       accountId: user.sub,
@@ -42,7 +77,7 @@ export async function findAccount(
         claims: { [key: string]: null | ClaimsParameterMember },
         rejected: string[],
       ): Promise<AccountClaims> => {
-        const scopes = new Set(scope.split(' '));
+        const scopes = parseScopes(scope);
         const result: AccountClaims = {
           sub: user.sub,
         };
@@ -56,12 +91,19 @@ export async function findAccount(
           result.email_verified = user.emailVerified;
         }
 
-        if (use === 'id_token' && scopes.has('profile')) {
-          result.roles = {
-            global: globalRoles,
-            client: clientRoles,
-          };
+        if (shouldEmitRoles(use, scopes)) {
+          result.roles = roleClaims;
         }
+
+        console.info('[OIDC][claims]', buildClaimLog({
+          accountId: user.sub,
+          clientId: requestedClientId,
+          use,
+          scope,
+          scopes,
+          result,
+          roles: roleClaims,
+        }));
 
         return result;
       },

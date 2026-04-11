@@ -66,7 +66,7 @@ async function seedAdminUser(): Promise<void> {
 
 async function seedClients(): Promise<void> {
   const auditorClientId = process.env.UX_CLIENT_ID || 'ux-auditor';
-  const baseDomain = process.env.UX_BASE_DOMAIN || 'dashboard.seudominio.com';
+  const baseDomain = process.env.UX_BASE_DOMAIN || 'http://localhost:3001';
 
   const clientsToSeed = [
     {
@@ -87,13 +87,21 @@ async function seedClients(): Promise<void> {
         clientSecret: clientData.clientSecret,
         name: clientData.name,
         redirectUris: clientData.redirectUris,
-        grantTypes: ['authorization_code'],
+        grantTypes: ['authorization_code', 'refresh_token'],
         responseTypes: ['code'],
         scope: 'openid profile email offline_access',
       });
       console.log(`✓ Cliente ${clientData.clientId} inserido com sucesso.`);
     } else {
-      console.log(`✓ Cliente ${clientData.clientId} já existe.`);
+      await db.update(clients).set({
+        name: clientData.name,
+        redirectUris: clientData.redirectUris,
+        grantTypes: ['authorization_code', 'refresh_token'],
+        responseTypes: ['code'],
+        scope: 'openid profile email offline_access',
+        updatedAt: new Date(),
+      }).where(eq(clients.clientId, clientData.clientId));
+      console.log(`✓ Cliente ${clientData.clientId} já existe e foi sincronizado com a configuração canônica.`);
     }
 
     const defaultRole = await ensureClientDefaultRole(clientData.clientId, 'Usuário', DEFAULT_CLIENT_ROLE_CODE);

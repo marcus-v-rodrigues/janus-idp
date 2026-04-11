@@ -38,6 +38,7 @@ Para consumidores com NextAuth, o fluxo prático é:
 3. O Janus autentica o usuário e devolve `authorization_code`.
 4. O cliente troca o `code` por tokens em `/oidc/token`.
 5. O cliente lê as claims do `id_token` ou consulta `GET /oidc/userinfo` com o access token e decide o acesso localmente.
+   O contrato canônico de autorização fica em `roles`, e o escopo necessário para recebê-lo é `profile`.
 
 Exemplo de configuração com NextAuth:
 
@@ -111,7 +112,7 @@ Exemplo de resposta do `token endpoint`:
 }
 ```
 
-Se o cliente solicitar `offline_access`, também pode receber `refresh_token`:
+Se o cliente solicitar `offline_access` e o cliente OIDC permitir `refresh_token`, também pode receber `refresh_token`:
 
 ```json
 {
@@ -148,7 +149,13 @@ Exemplo de resposta do `GET /oidc/userinfo`:
   "sub": "123e4567-e89b-12d3-a456-426614174000",
   "name": "Usuário de Exemplo",
   "email": "usuario@exemplo.com",
-  "email_verified": true
+  "email_verified": true,
+  "roles": {
+    "global": ["user"],
+    "client": [
+      { "code": "user", "clientId": "ux-auditor" }
+    ]
+  }
 }
 ```
 
@@ -163,16 +170,15 @@ No NextAuth, isso normalmente vira algo como:
 
 ```json
 {
-  "user": {
-    "id": "123e4567-e89b-12d3-a456-426614174000",
-    "name": "Usuário de Exemplo",
-    "email": "usuario@exemplo.com",
-    "roles": {
-      "global": ["user"],
-      "client": [
-        { "code": "user", "clientId": "ux-auditor" }
-      ]
-    }
+  "sub": "123e4567-e89b-12d3-a456-426614174000",
+  "name": "Usuário de Exemplo",
+  "email": "usuario@exemplo.com",
+  "email_verified": true,
+  "roles": {
+    "global": ["user"],
+    "client": [
+      { "code": "user", "clientId": "ux-auditor" }
+    ]
   }
 }
 ```
@@ -206,3 +212,30 @@ No arquivo `src/index.ts`, o Janus configura tempos de vida (TTL) específicos p
 ## Justificativa de Escolha: Resource Indicators (RFC 8707)
 
 O Janus-IDP utiliza a extensão **Resource Indicators** para garantir que os tokens de acesso sejam emitidos no formato **JWT** em vez de tokens opacos. Isso permite que APIs externas (Resource Servers) validem o token localmente, sem a necessidade de uma chamada de introspecção constante ao Janus, reduzindo latência e carga no servidor de identidade.
+
+## Contrato Canônico de Claims
+
+O Janus emite `roles` como contrato canônico de autorização em dois pontos do fluxo OIDC:
+
+- `id_token`
+- `userinfo`
+
+O escopo necessário para receber `roles` é `profile`. O formato é exatamente:
+
+```json
+{
+  "roles": {
+    "global": ["user"],
+    "client": [
+      { "code": "user", "clientId": "ux-auditor" }
+    ]
+  }
+}
+```
+
+Observações práticas:
+
+- `roles.global` contém papéis globais do usuário.
+- `roles.client` contém papéis do cliente que está solicitando o login.
+- `offline_access` controla refresh token, não a presença de `roles`.
+- O `access_token` não é o contrato canônico de autorização de UI; o cliente deve consumir `id_token` ou `userinfo`.

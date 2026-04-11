@@ -6,13 +6,8 @@ import { eq } from 'drizzle-orm';
 const { users } = schema;
 
 /**
- * Função para encontrar uma conta de usuário no banco de dados.
- * Esta função é usada pelo oidc-provider para recuperar informações do usuário.
- *
- * @param ctx - Contexto do Koa com informações OIDC
- * @param sub - Subject identifier (ID do usuário)
- * @param token - Token opcional para contexto adicional
- * @returns Objeto com informações da conta ou undefined se não encontrado
+ * Localiza a conta associada ao `sub` informado.
+ * O `sub` é o identificador canônico do usuário no OIDC.
  */
 export async function findAccount(
   ctx: KoaContextWithOIDC,
@@ -20,8 +15,7 @@ export async function findAccount(
   token?: any
 ): Promise<undefined | { accountId: string; async: any; claims: (...args: any[]) => any }> {
   try {
-    // Busca o usuário no banco de dados
-    const result = await db.select().from(users).where(eq(users.id, sub)).limit(1);
+    const result = await db.select().from(users).where(eq(users.sub, sub)).limit(1);
     const user = result[0];
 
     if (!user) {
@@ -29,23 +23,20 @@ export async function findAccount(
     }
 
     return {
-      accountId: sub,
+      accountId: user.sub,
       async: () => {
-        // Função assíncrona que retorna os claims do usuário
         return {
-          sub: user.id,
+          sub: user.sub,
           email: user.email,
           email_verified: user.emailVerified,
           name: user.name || user.email,
         };
       },
-      // Função síncrona para claims básicos
       claims: (...scopes: string[]) => {
         const claims: any = {
-          sub: user.id,
+          sub: user.sub,
         };
 
-        // Adiciona claims baseados nos escopos solicitados
         for (const scope of scopes) {
           switch (scope) {
             case 'profile':
@@ -62,7 +53,7 @@ export async function findAccount(
       },
     };
   } catch (err) {
-    console.error('Error finding account:', err);
+    console.error('Erro ao localizar a conta:', err);
     return undefined;
   }
 }

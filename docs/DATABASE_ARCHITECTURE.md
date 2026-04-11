@@ -8,27 +8,29 @@ O banco de dados é projetado para suportar o armazenamento persistente de ident
 
 ## Modelagem de Dados e Lógica de Negócio
 
-A modelagem é dividida em quatro domínios principais:
+A modelagem é dividida em cinco domínios principais:
 
-1.  **Identidade Central (`User`):** Armazena dados sensíveis e credenciais (hash) do usuário.
+1.  **Identidade Central (`User`):** Armazena credenciais, atributos e o `sub` estável do usuário.
 2.  **Ecossistema de Clientes (`Client`):** Configurações de aplicações que podem solicitar autenticação (URIs de redirecionamento, segredos, escopos).
-3.  **Autorização de Acesso (`UserClient`):** Tabela intermediária de Controle de Acesso Baseado em Papéis (RBAC), vinculando explicitamente quais usuários podem acessar quais aplicações.
-4.  **Estado do Provedor (`OidcPayload`):** Tabela genérica para armazenar o estado interno do motor OIDC (sessões, tokens, códigos de autorização).
+3.  **Catálogo de Papéis (`Role`):** Papéis globais e papéis por cliente, todos dirigidos por dados e não por enum fixo.
+4.  **Atribuições de Papéis (`UserRoleAssignment`):** Tabela de relacionamento entre usuários e papéis.
+5.  **Estado do Provedor (`OidcPayload`):** Tabela genérica para armazenar o estado interno do motor OIDC (sessões, tokens, códigos de autorização).
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#bfbfbf', 'edgeColor': '#5d5d5d' }, "flowchart": {"subGraphTitleMargin": {"bottom": 30}}}}%%
 erDiagram
-    User ||--o{ UserClient : "vinculado"
-    Client ||--o{ UserClient : "possui"
     User ||--o{ Account : "possui"
+    User ||--o{ UserRoleAssignment : "recebe"
+    Role ||--o{ UserRoleAssignment : "é atribuída"
+    Client ||--o{ Role : "escopo de"
     OidcPayload }|--|| Client : "referencia (payload)"
     
     User {
         uuid id PK
+        uuid sub UK
         text email UK
         text passwordHash
         boolean emailVerified
-        enum role
     }
     
     Client {
@@ -39,10 +41,20 @@ erDiagram
         text grantTypes ARRAY
     }
     
-    UserClient {
+    Role {
+        uuid id PK
+        text name
+        text code
+        enum scopeType
+        text scopeKey
+        text clientId FK
+        boolean isSystem
+    }
+    
+    UserRoleAssignment {
         uuid id PK
         uuid userId FK
-        text clientId FK
+        uuid roleId FK
     }
     
     OidcPayload {
@@ -71,7 +83,7 @@ A gestão de expiração de payloads segue uma lógica de remoção preguiçosa 
 
 $$ T_{	ext{atual}} > T_{	ext{expira}} $$
 
-A integridade referencial garante que, ao remover um usuário (on delete cascade), todos os seus vínculos em `UserClient` e `Account` sejam eliminados, preservando a consistência do sistema.
+A integridade referencial garante que, ao remover um usuário (on delete cascade), todas as suas atribuições em `UserRoleAssignment` e `Account` sejam eliminadas, preservando a consistência do sistema.
 
 ## Parâmetros Técnicos
 

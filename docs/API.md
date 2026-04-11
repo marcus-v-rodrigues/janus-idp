@@ -22,7 +22,7 @@ http://localhost:3000/api
 
 ### Criar Usuário
 
-Cria um novo usuário no sistema e o vincula a um cliente específico para controle de acesso.
+Cria um novo usuário no sistema e garante o papel global `user`. Se `clientId` for informado, o endpoint também atribui o papel padrão do cliente, sem usar uma tabela de vínculo direto entre usuário e cliente.
 
 **Endpoint**: `POST /api/users`
 
@@ -46,7 +46,7 @@ Cria um novo usuário no sistema e o vincula a um cliente específico para contr
 | `email` | string | Sim | Email válido do usuário |
 | `password` | string | Sim | Senha com mínimo 6 caracteres |
 | `name` | string | Não | Nome do usuário |
-| `clientId` | string | Sim | ID do cliente OIDC ao qual o usuário será vinculado |
+| `clientId` | string | Não | ID do cliente OIDC ao qual o usuário receberá o papel padrão |
 
 **Comportamento Idempotente**:
 
@@ -54,23 +54,28 @@ A API possui comportamento idempotente para facilitar integrações:
 
 | Cenário | Status HTTP | Descrição |
 |---------|-------------|-----------|
-| Usuário novo | `201 Created` | Usuário criado e vinculado ao cliente |
-| Usuário existe, senha correta, sem vínculo | `200 OK` | Vínculo criado (`isNewLink: true`) |
-| Usuário existe, senha correta, já vinculado | `200 OK` | Sem alterações (`isNewLink: false`) |
+| Usuário novo | `201 Created` | Usuário criado e papéis atribuídos |
+| Usuário existe, senha correta, sem papel de cliente | `200 OK` | Papel padrão atribuído ao cliente, se aplicável |
+| Usuário existe, senha correta, papéis já presentes | `200 OK` | Sem duplicação |
 | Usuário existe, senha incorreta | `401 Unauthorized` | Erro de credenciais |
 
 **Respostas de Sucesso** (`201 Created` - Novo usuário):
 ```json
 {
   "id": "123e4567-e89b-12d3-a456-426614174000",
+  "sub": "123e4567-e89b-12d3-a456-426614174000",
   "email": "usuario@exemplo.com",
   "name": "Usuário de Exemplo",
-  "role": "USER",
   "emailVerified": false,
   "createdAt": "2026-02-21T12:00:00.000Z",
   "updatedAt": "2026-02-21T12:00:00.000Z",
-  "linkedToClient": true,
-  "isNewLink": true
+  "globalRoles": ["user"],
+  "clientRoles": [
+    { "code": "member", "clientId": "meu-cliente-oidc" }
+  ],
+  "assignedToClient": true,
+  "created": true,
+  "clientRoleCode": "member"
 }
 ```
 
@@ -78,14 +83,19 @@ A API possui comportamento idempotente para facilitar integrações:
 ```json
 {
   "id": "123e4567-e89b-12d3-a456-426614174000",
+  "sub": "123e4567-e89b-12d3-a456-426614174000",
   "email": "usuario@exemplo.com",
   "name": "Usuário de Exemplo",
-  "role": "USER",
   "emailVerified": false,
   "createdAt": "2026-02-21T12:00:00.000Z",
   "updatedAt": "2026-02-21T12:00:00.000Z",
-  "linkedToClient": true,
-  "isNewLink": true
+  "globalRoles": ["user"],
+  "clientRoles": [
+    { "code": "member", "clientId": "meu-cliente-oidc" }
+  ],
+  "assignedToClient": true,
+  "created": false,
+  "clientRoleCode": "member"
 }
 ```
 
@@ -96,14 +106,6 @@ A API possui comportamento idempotente para facilitar integrações:
 {
   "error": "Missing required fields",
   "message": "email and password are required"
-}
-```
-
-- `400 Bad Request` - clientId faltando
-```json
-{
-  "error": "Missing required field",
-  "message": "clientId is required for user-client association"
 }
 ```
 

@@ -25,7 +25,7 @@ export const Login: React.FC<LoginProps> = ({ uid, client, params, flash }) => {
   return (
     <Layout variant="auth">
       <Card>
-        {/* Client Logo */}
+        {/* Logo do cliente */}
         {client.logoUri && (
           <div className="flex justify-center mb-6">
             <img
@@ -37,9 +37,9 @@ export const Login: React.FC<LoginProps> = ({ uid, client, params, flash }) => {
         )}
 
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Sign in</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Entrar</h1>
           <p className="mt-2 text-sm text-gray-600">
-            to continue to <span className="font-medium">{clientName}</span>
+            para continuar em <span className="font-medium">{clientName}</span>
           </p>
         </div>
 
@@ -55,13 +55,13 @@ export const Login: React.FC<LoginProps> = ({ uid, client, params, flash }) => {
             label="Email"
             type="email"
             name="email"
-            placeholder="you@example.com"
+            placeholder="voce@exemplo.com"
             required
             autoComplete="email"
           />
 
           <Input
-            label="Password"
+            label="Senha"
             type="password"
             name="password"
             placeholder="••••••••"
@@ -77,7 +77,7 @@ export const Login: React.FC<LoginProps> = ({ uid, client, params, flash }) => {
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
             />
             <label htmlFor="remember" className="ml-2 block text-sm text-gray-700">
-              Remember me
+              Lembrar de mim
             </label>
           </div>
 
@@ -87,19 +87,19 @@ export const Login: React.FC<LoginProps> = ({ uid, client, params, flash }) => {
             style={{ backgroundColor: brandColor }}
             className="hover:opacity-90"
           >
-            Sign In
+            Entrar
           </Button>
         </form>
 
         <div className="mt-6 text-center">
           <p className="text-xs text-gray-500">
-            By signing in, you agree to the{' '}
+            Ao entrar, você concorda com os{' '}
             <a href="#" className="text-blue-600 hover:text-blue-500">
-              Terms of Service
+              Termos de Serviço
             </a>{' '}
-            and{' '}
+            e a{' '}
             <a href="#" className="text-blue-600 hover:text-blue-500">
-              Privacy Policy
+              Política de Privacidade
             </a>
           </p>
         </div>

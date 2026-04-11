@@ -7,7 +7,7 @@ O sistema **Janus-IDP** (Identity Provider) é uma solução de gerenciamento de
 O propósito central do Janus-IDP é prover uma camada de abstração entre o usuário final e os recursos protegidos. Ele resolve o problema de fragmentação de credenciais, onde o usuário precisaria de múltiplas contas para diferentes serviços. Como um IDP, ele oferece:
 
 1.  **Autenticação Centralizada (SSO):** O usuário autentica-se uma única vez e obtém acesso a múltiplos sistemas autorizados.
-2.  **Autorização Granular (RBAC):** Controle de acesso baseado em papéis e vínculos explícitos entre usuários e clientes (tabela `UserClient`).
+2.  **Autorização Granular (RBAC):** Controle de acesso baseado em papéis globais e papéis por cliente, com o `sub` como identificador estável do usuário.
 3.  **Segurança de Dados:** Armazenamento seguro de segredos e emissão de tokens assinados criptograficamente.
 
 ## Arquitetura de Alto Nível

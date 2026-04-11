@@ -8,10 +8,11 @@ import { renderView } from '../utils/renderer';
 import { Login } from '../views/oidc/Login';
 import { Consent } from '../views/oidc/Consent';
 import { Error as ErrorView } from '../views/oidc/Error';
+import { userHasClientAccess } from '../services/rbac';
 
 const router = Router();
 
-const { users, userClients, oidcPayloads } = schema;
+const { users, oidcPayloads } = schema;
 
 /**
  * Escopos OIDC permitidos para consentimento.
@@ -97,7 +98,7 @@ export default function interactionRoutes(oidc: Provider): Router {
             params,
             flash: undefined,
           }, {
-            title: 'Sign in',
+            title: 'Entrar',
             // Não habilitar hidratação para o Login - o formulário precisa ser submetido nativamente
             // A hidratação do React pode interferir com o comportamento padrão do form
             componentName: 'Login',
@@ -259,8 +260,8 @@ export default function interactionRoutes(oidc: Provider): Router {
           uid,
           client: clientData,
           params,
-          flash: 'Please provide both email and password',
-        }, { title: 'Sign in' });
+          flash: 'Informe email e senha.',
+        }, { title: 'Entrar' });
       }
 
       // Busca o usuário no banco de dados pelo email
@@ -272,8 +273,8 @@ export default function interactionRoutes(oidc: Provider): Router {
           uid,
           client: clientData,
           params,
-          flash: 'Invalid email or password',
-        }, { title: 'Sign in' });
+          flash: 'Email ou senha inválidos.',
+        }, { title: 'Entrar' });
       }
 
       // Verifica se a senha está correta usando bcrypt
@@ -283,42 +284,31 @@ export default function interactionRoutes(oidc: Provider): Router {
           uid,
           client: clientData,
           params,
-          flash: 'Invalid email or password',
-        }, { title: 'Sign in' });
+          flash: 'Email ou senha inválidos.',
+        }, { title: 'Entrar' });
       }
 
-      // ========================================
-      // VERIFICAÇÃO DE AUTORIZAÇÃO DE ACESSO
-      // Verifica se o usuário tem permissão para acessar este cliente específico
-      // ========================================
-      const userClientLink = await db.select()
-        .from(userClients)
-        .where(and(
-          eq(userClients.userId, user.id),
-          eq(userClients.clientId, client.clientId)
-        ))
-        .limit(1);
+      const hasClientAccess = await userHasClientAccess(user.id, client.clientId);
 
-      // Se não houver vínculo, o usuário não tem permissão para acessar esta aplicação
-      if (userClientLink.length === 0) {
-        console.log(`[Interaction] Access denied: User ${user.email} not authorized for client ${client.clientId}`);
-        
+      if (!hasClientAccess) {
+        console.log(`[Interaction] Access denied: user ${user.sub} not authorized for client ${client.clientId}`);
+
         return renderView(res, ErrorView, {
-          error: 'Access Denied',
-          message: 'Você não tem permissão para acessar esta aplicação. Entre em contato com o administrador para solicitar acesso.',
+          error: 'Acesso negado',
+          message: 'Você está autenticado, mas não tem autorização para acessar esta aplicação.',
         }, {
-          title: 'Access Denied',
+          title: 'Acesso negado',
           componentName: 'Error',
           enableHydration: true
         });
       }
 
-      console.log(`[Interaction] Access granted: User ${user.email} authorized for client ${client.clientId}`);
+      console.log(`[Interaction] Access granted: user ${user.sub} authorized for client ${client.clientId}`);
 
       // Cria o resultado da interação de login
       const result2 = {
         login: {
-          accountId: user.id,
+          accountId: user.sub,
           // Claims do usuário que serão retornados no token
           acr: 'urn:mace:incommon:iap:silver',
           amr: ['pwd'],

@@ -1,50 +1,62 @@
 import { Router, Request, Response } from 'express';
 import * as bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { db } from '../adapter';
 import { schema } from '../db';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { ensureServiceKey } from '../middleware/auth';
+import {
+  DEFAULT_CLIENT_ROLE_CODE,
+  DEFAULT_GLOBAL_USER_ROLE_CODE,
+  ensureClientDefaultRole,
+  ensureGlobalRole,
+  ensureUserRole,
+  getUserRoles,
+  userHasClientAccess,
+} from '../services/rbac';
 
 const router = Router();
 
-const { users, clients, userClients } = schema;
+const { users, clients } = schema;
 
-/**
- * Interface para o corpo da requisição de criação de usuário.
- * Inclui clientId para vincular o usuário a um cliente específico.
- */
 interface CreateUserBody {
   email: string;
   password: string;
   name?: string;
-  clientId: string; // Obrigatório - ID do cliente ao qual o usuário será vinculado
+  clientId?: string;
 }
 
-/**
- * POST /api/users
- * Cria um novo usuário no sistema e o vincula a um cliente específico.
- *
- * Corpo da requisição:
- * - email: string (obrigatório) - Email do usuário
- * - password: string (obrigatório) - Senha do usuário
- * - name: string (opcional) - Nome do usuário
- * - clientId: string (obrigatório) - ID do cliente para vincular o usuário
- *
- * Headers:
- * - X-Service-Key: string (obrigatório) - Chave de API do serviço
- *
- * Retorna o usuário criado com seu ID.
- *
- * Comportamento idempotente:
- * - Se o usuário já existe e está vinculado ao cliente: retorna 200 OK
- * - Se o usuário é novo: cria usuário, vincula ao cliente e retorna 201 Created
- * - Se o usuário já existe mas não está vinculado ao cliente: cria vínculo e retorna 200 OK
- */
+function validateEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+async function formatUserResponse(user: typeof users.$inferSelect, clientId?: string) {
+  const roles = await getUserRoles(user.id);
+  const globalRoles = roles.filter((role) => role.scopeType === 'GLOBAL');
+  const clientRoles = roles.filter((role) => role.scopeType === 'CLIENT');
+
+  return {
+    id: user.id,
+    sub: user.sub,
+    email: user.email,
+    name: user.name,
+    emailVerified: user.emailVerified,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    globalRoles: globalRoles.map((role) => role.code),
+    clientRoles: clientRoles.map((role) => ({
+      code: role.code,
+      clientId: role.clientId,
+    })),
+    assignedToClient: clientId ? await userHasClientAccess(user.id, clientId) : undefined,
+  };
+}
+
 router.post('/users', ensureServiceKey, async (req: Request, res: Response) => {
   try {
     const { email, password, name, clientId } = req.body as CreateUserBody;
 
-    // Validação dos campos obrigatórios
     if (!email || !password) {
       return res.status(400).json({
         error: 'Missing required fields',
@@ -52,24 +64,13 @@ router.post('/users', ensureServiceKey, async (req: Request, res: Response) => {
       });
     }
 
-    // Validação do clientId (obrigatório para controle de acesso)
-    if (!clientId) {
-      return res.status(400).json({
-        error: 'Missing required field',
-        message: 'clientId is required for user-client association',
-      });
-    }
-
-    // Validação básica do email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!validateEmail(email)) {
       return res.status(400).json({
         error: 'Invalid email',
         message: 'The provided email is not valid',
       });
     }
 
-    // Validação da senha (mínimo 6 caracteres)
     if (password.length < 6) {
       return res.status(400).json({
         error: 'Invalid password',
@@ -77,24 +78,23 @@ router.post('/users', ensureServiceKey, async (req: Request, res: Response) => {
       });
     }
 
-    // Verifica se o cliente existe
-    const clientResult = await db.select().from(clients).where(eq(clients.clientId, clientId)).limit(1);
-    const client = clientResult[0];
+    let client = null;
+    if (clientId) {
+      const clientResult = await db.select().from(clients).where(eq(clients.clientId, clientId)).limit(1);
+      client = clientResult[0] ?? null;
 
-    if (!client) {
-      return res.status(400).json({
-        error: 'Invalid client',
-        message: 'The specified client does not exist',
-      });
+      if (!client) {
+        return res.status(400).json({
+          error: 'Invalid client',
+          message: 'The specified client does not exist',
+        });
+      }
     }
 
-    // Verifica se já existe um usuário com este email
     const existingResult = await db.select().from(users).where(eq(users.email, email)).limit(1);
     const existingUser = existingResult[0];
 
-    // Se o usuário já existe, verifica a senha e cria vínculo se necessário
     if (existingUser) {
-      // Verifica se a senha está correta
       const isValidPassword = await bcrypt.compare(password, existingUser.passwordHash);
       if (!isValidPassword) {
         return res.status(401).json({
@@ -103,87 +103,64 @@ router.post('/users', ensureServiceKey, async (req: Request, res: Response) => {
         });
       }
 
-      // Verifica se o vínculo já existe
-      const existingLink = await db.select()
-        .from(userClients)
-        .where(and(
-          eq(userClients.userId, existingUser.id),
-          eq(userClients.clientId, clientId)
-        ))
-        .limit(1);
+      const userRole = await ensureGlobalRole(
+        DEFAULT_GLOBAL_USER_ROLE_CODE,
+        'Usuário',
+        'Papel base para contas normais',
+        true,
+      );
+      await ensureUserRole(existingUser.id, userRole.id, null);
 
-      if (existingLink.length > 0) {
-        // Vínculo já existe - retorna 200 OK (idempotente)
-        console.log(`[API] User already linked to client: ${existingUser.email} -> ${clientId}`);
-        return res.status(200).json({
-          id: existingUser.id,
-          email: existingUser.email,
-          name: existingUser.name,
-          role: existingUser.role,
-          emailVerified: existingUser.emailVerified,
-          createdAt: existingUser.createdAt,
-          updatedAt: existingUser.updatedAt,
-          linkedToClient: true,
-          isNewLink: false,
-        });
+      if (clientId && client) {
+        const clientRole = await ensureClientDefaultRole(client.clientId);
+        await ensureUserRole(existingUser.id, clientRole.id, null);
       }
 
-      // Cria o vínculo entre usuário existente e cliente
-      await db.insert(userClients).values({
-        userId: existingUser.id,
-        clientId: clientId,
-      });
-
-      console.log(`[API] User linked to client: ${existingUser.email} -> ${clientId}`);
+      const response = await formatUserResponse(existingUser, clientId);
 
       return res.status(200).json({
-        id: existingUser.id,
-        email: existingUser.email,
-        name: existingUser.name,
-        role: existingUser.role,
-        emailVerified: existingUser.emailVerified,
-        createdAt: existingUser.createdAt,
-        updatedAt: existingUser.updatedAt,
-        linkedToClient: true,
-        isNewLink: true,
+        ...response,
+        created: false,
+        clientRoleCode: clientId ? DEFAULT_CLIENT_ROLE_CODE : null,
       });
     }
 
-    // Cria o hash da senha
     const passwordHash = await bcrypt.hash(password, 10);
+    const subject = crypto.randomUUID();
 
-    // Cria o usuário no banco de dados
     const [user] = await db.insert(users).values({
+      id: subject,
+      sub: subject,
       email,
       passwordHash,
       name: name || null,
-      role: 'USER',
-    }).returning({
-      id: users.id,
-      email: users.email,
-      name: users.name,
-      role: users.role,
-      emailVerified: users.emailVerified,
-      createdAt: users.createdAt,
-      updatedAt: users.updatedAt,
-    });
+      emailVerified: false,
+    }).returning();
 
-    // Cria o vínculo entre usuário e cliente
-    await db.insert(userClients).values({
-      userId: user.id,
-      clientId: clientId,
-    });
+    const userRole = await ensureGlobalRole(
+      DEFAULT_GLOBAL_USER_ROLE_CODE,
+      'Usuário',
+      'Papel base para contas normais',
+      true,
+    );
+    await ensureUserRole(user.id, userRole.id, null);
 
-    console.log(`[API] User created and linked to client: ${user.email} (${user.id}) -> ${clientId}`);
+    let clientRoleCode: string | null = null;
+    if (clientId && client) {
+      const clientRole = await ensureClientDefaultRole(client.clientId);
+      clientRoleCode = clientRole.code;
+      await ensureUserRole(user.id, clientRole.id, null);
+    }
+
+    const response = await formatUserResponse(user, clientId);
 
     return res.status(201).json({
-      ...user,
-      linkedToClient: true,
-      isNewLink: true,
+      ...response,
+      created: true,
+      clientRoleCode,
     });
   } catch (error) {
-    console.error('[API] Error creating user:', error);
-    // Não expõe detalhes do erro de banco de dados
+    console.error('[API] Erro ao criar usuário:', error);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'An error occurred while creating the user',

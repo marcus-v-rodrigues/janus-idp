@@ -1,77 +1,117 @@
 import { Request, Response, NextFunction } from 'express';
 import { db } from '../adapter';
 import { schema } from '../db';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { userHasAnyGlobalRole } from '../services/rbac';
 
 const { users } = schema;
 
-/**
- * Middleware para garantir que o usuário tenha a função ADMIN.
- * Redireciona para /admin/login se não estiver autenticado ou não for um administrador.
- */
-export async function ensureAdmin(
+export async function ensureGlobalRole(
+  roleCode: string,
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    // Verifica se a sessão de administrador existe
-    const adminUserId = req.session?.adminUserId;
+    const adminUserSub = req.session?.adminUserSub;
 
-    if (!adminUserId) {
-      // Sem sessão de administrador, redireciona para login
+    if (!adminUserSub) {
       return res.redirect('/admin/login');
     }
 
-    // Verifica se o usuário existe e tem a função ADMIN
     const result = await db.select({
       id: users.id,
-      role: users.role,
+      sub: users.sub,
       email: users.email,
       name: users.name,
-    }).from(users).where(eq(users.id, adminUserId)).limit(1);
-    
+    }).from(users).where(eq(users.sub, adminUserSub)).limit(1);
+
     const user = result[0];
 
-    if (!user || user.role !== 'ADMIN') {
-      // Usuário não existe ou não é um administrador
-      delete req.session?.adminUserId;
+    if (!user) {
+      delete req.session?.adminUserSub;
       return res.redirect('/admin/login');
     }
 
-    // Anexa o usuário à requisição para uso nas rotas
+    const hasRole = await userHasAnyGlobalRole(user.id, [roleCode]);
+    if (!hasRole) {
+      delete req.session?.adminUserSub;
+      return res.redirect('/admin/login');
+    }
+
     req.adminUser = user;
     next();
   } catch (error) {
-    console.error('Erro no middleware ensureAdmin:', error);
+    console.error('Erro no middleware de autorização:', error);
     res.redirect('/admin/login');
   }
 }
 
-/**
- * Middleware para garantir que o usuário NÃO esteja logado (para página de login).
- * Redireciona para /admin se já estiver logado como administrador.
- */
+export function requireGlobalRole(roleCode: string) {
+  return (req: Request, res: Response, next: NextFunction) =>
+    ensureGlobalRole(roleCode, req, res, next);
+}
+
+export function requireAnyGlobalRole(roleCodes: string[]) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const adminUserSub = req.session?.adminUserSub;
+
+      if (!adminUserSub) {
+        return res.redirect('/admin/login');
+      }
+
+      const result = await db.select({
+        id: users.id,
+        sub: users.sub,
+        email: users.email,
+        name: users.name,
+      }).from(users).where(eq(users.sub, adminUserSub)).limit(1);
+
+      const user = result[0];
+
+      if (!user) {
+        delete req.session?.adminUserSub;
+        return res.redirect('/admin/login');
+      }
+
+      const hasRole = await userHasAnyGlobalRole(user.id, roleCodes);
+      if (!hasRole) {
+        delete req.session?.adminUserSub;
+        return res.redirect('/admin/login');
+      }
+
+      req.adminUser = user;
+      next();
+    } catch (error) {
+      console.error('Erro no middleware de autorização:', error);
+      res.redirect('/admin/login');
+    }
+  };
+}
+
+export async function ensureAdmin(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  return ensureGlobalRole('janus_admin', req, res, next);
+}
+
 export async function ensureNotAdmin(
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  const adminUserId = req.session?.adminUserId;
+  const adminUserSub = req.session?.adminUserSub;
 
-  if (adminUserId) {
-    // Já logado, redireciona para o dashboard
+  if (adminUserSub) {
     return res.redirect('/admin');
   }
 
   next();
 }
 
-/**
- * Middleware para autenticação de serviços externos via API Key.
- * Verifica se o header 'X-Service-Key' corresponde à variável de ambiente JANUS_SERVICE_API_KEY.
- * Usado para permitir que serviços externos (como APIs) criem usuários programaticamente.
- */
 export function ensureServiceKey(
   req: Request,
   res: Response,
@@ -81,7 +121,7 @@ export function ensureServiceKey(
   const expectedKey = process.env.JANUS_SERVICE_API_KEY;
 
   if (!expectedKey) {
-    console.error('JANUS_SERVICE_API_KEY not configured in environment variables');
+    console.error('JANUS_SERVICE_API_KEY não configurada nas variáveis de ambiente');
     res.status(500).json({ error: 'Service API key not configured' });
     return;
   }

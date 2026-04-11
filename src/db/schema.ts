@@ -1,5 +1,6 @@
 import {
   pgTable,
+  pgEnum,
   uuid,
   text,
   boolean,
@@ -7,26 +8,22 @@ import {
   json,
   uniqueIndex,
   index,
-  pgEnum,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
-// Enum para papéis de usuário
-export const roleEnum = pgEnum('role', ['USER', 'ADMIN']);
+export const roleScopeEnum = pgEnum('role_scope_type', ['GLOBAL', 'CLIENT']);
 
-// Tabela de usuários
 export const users = pgTable('User', {
   id: uuid('id').defaultRandom().primaryKey(),
+  sub: uuid('sub').notNull().unique(),
   email: text('email').notNull().unique(),
   passwordHash: text('passwordHash').notNull(),
   name: text('name'),
   emailVerified: boolean('emailVerified').default(false).notNull(),
-  role: roleEnum('role').default('USER').notNull(),
   createdAt: timestamp('createdAt').defaultNow().notNull(),
   updatedAt: timestamp('updatedAt').defaultNow().notNull(),
 });
 
-// Tabela de contas (para provedores OAuth)
 export const accounts = pgTable('Account', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -40,7 +37,6 @@ export const accounts = pgTable('Account', {
   index('Account_userId_idx').on(table.userId),
 ]);
 
-// Tabela de payloads OIDC (para o adaptador oidc-provider)
 export const oidcPayloads = pgTable('OidcPayload', {
   id: text('id').primaryKey(),
   type: text('type').notNull(),
@@ -59,7 +55,6 @@ export const oidcPayloads = pgTable('OidcPayload', {
   index('OidcPayload_expiresAt_idx').on(table.expiresAt),
 ]);
 
-// Tabela de clientes OIDC
 export const clients = pgTable('Client', {
   id: uuid('id').defaultRandom().primaryKey(),
   clientId: text('clientId').notNull().unique(),
@@ -76,27 +71,39 @@ export const clients = pgTable('Client', {
   updatedAt: timestamp('updatedAt').defaultNow().notNull(),
 });
 
-// Tabela de vínculo entre usuários e clientes (controle de acesso granular)
-// Esta tabela gerencia a relação many-to-many entre users e clients,
-// permitindo controlar quais usuários podem acessar quais aplicações cliente
-export const userClients = pgTable('UserClient', {
+export const roles = pgTable('Role', {
   id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  clientId: text('clientId').notNull().references(() => clients.clientId, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  code: text('code').notNull(),
+  scopeType: roleScopeEnum('scopeType').notNull(),
+  scopeKey: text('scopeKey').notNull(),
+  clientId: text('clientId').references(() => clients.clientId, { onDelete: 'cascade' }),
+  description: text('description'),
+  isSystem: boolean('isSystem').default(false).notNull(),
   createdAt: timestamp('createdAt').defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().notNull(),
 }, (table) => [
-  // Índice único composto para evitar vínculos duplicados
-  uniqueIndex('UserClient_userId_clientId_key').on(table.userId, table.clientId),
-  // Índice para buscas por userId
-  index('UserClient_userId_idx').on(table.userId),
-  // Índice para buscas por clientId
-  index('UserClient_clientId_idx').on(table.clientId),
+  uniqueIndex('Role_scopeKey_code_key').on(table.scopeKey, table.code),
+  index('Role_scopeType_idx').on(table.scopeType),
+  index('Role_clientId_idx').on(table.clientId),
 ]);
 
-// Relações
+export const userRoleAssignments = pgTable('UserRoleAssignment', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  roleId: uuid('roleId').notNull().references(() => roles.id, { onDelete: 'cascade' }),
+  assignedByUserId: uuid('assignedByUserId').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('UserRoleAssignment_userId_roleId_key').on(table.userId, table.roleId),
+  index('UserRoleAssignment_userId_idx').on(table.userId),
+  index('UserRoleAssignment_roleId_idx').on(table.roleId),
+]);
+
 export const usersRelations = relations(users, ({ many }) => ({
   accounts: many(accounts),
-  userClients: many(userClients),
+  roleAssignments: many(userRoleAssignments),
 }));
 
 export const accountsRelations = relations(accounts, ({ one }) => ({
@@ -106,24 +113,33 @@ export const accountsRelations = relations(accounts, ({ one }) => ({
   }),
 }));
 
-// Relação da tabela userClients com users e clients
-export const userClientsRelations = relations(userClients, ({ one }) => ({
-  user: one(users, {
-    fields: [userClients.userId],
-    references: [users.id],
-  }),
+export const rolesRelations = relations(roles, ({ many, one }) => ({
+  assignments: many(userRoleAssignments),
   client: one(clients, {
-    fields: [userClients.clientId],
+    fields: [roles.clientId],
     references: [clients.clientId],
   }),
 }));
 
-// Relação da tabela clients com userClients
-export const clientsRelations = relations(clients, ({ many }) => ({
-  userClients: many(userClients),
+export const userRoleAssignmentsRelations = relations(userRoleAssignments, ({ one }) => ({
+  user: one(users, {
+    fields: [userRoleAssignments.userId],
+    references: [users.id],
+  }),
+  role: one(roles, {
+    fields: [userRoleAssignments.roleId],
+    references: [roles.id],
+  }),
+  assignedByUser: one(users, {
+    fields: [userRoleAssignments.assignedByUserId],
+    references: [users.id],
+  }),
 }));
 
-// Exportações de tipos
+export const clientsRelations = relations(clients, ({ many }) => ({
+  roles: many(roles),
+}));
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Account = typeof accounts.$inferSelect;
@@ -132,5 +148,7 @@ export type OidcPayload = typeof oidcPayloads.$inferSelect;
 export type NewOidcPayload = typeof oidcPayloads.$inferInsert;
 export type Client = typeof clients.$inferSelect;
 export type NewClient = typeof clients.$inferInsert;
-export type UserClient = typeof userClients.$inferSelect;
-export type NewUserClient = typeof userClients.$inferInsert;
+export type Role = typeof roles.$inferSelect;
+export type NewRole = typeof roles.$inferInsert;
+export type UserRoleAssignment = typeof userRoleAssignments.$inferSelect;
+export type NewUserRoleAssignment = typeof userRoleAssignments.$inferInsert;

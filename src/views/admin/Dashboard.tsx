@@ -6,7 +6,8 @@ interface DashboardProps {
   stats: {
     totalUsers: number;
     totalClients: number;
-    activeAdmins: number;
+    totalRoles: number;
+    janusAdmins: number;
   };
   sidebarLinks: Array<{ href: string; label: string; active?: boolean }>;
 }
@@ -18,7 +19,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, sidebarLinks }) => 
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500">Total Users</p>
+              <p className="text-sm font-medium text-gray-500">Total de usuários</p>
               <p className="mt-1 text-3xl font-semibold text-gray-900">{stats.totalUsers}</p>
             </div>
             <div className="p-3 bg-blue-100 rounded-full">
@@ -32,7 +33,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, sidebarLinks }) => 
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500">Total Clients</p>
+              <p className="text-sm font-medium text-gray-500">Total de clientes</p>
               <p className="mt-1 text-3xl font-semibold text-gray-900">{stats.totalClients}</p>
             </div>
             <div className="p-3 bg-green-100 rounded-full">
@@ -46,8 +47,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, sidebarLinks }) => 
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500">Active Admins</p>
-              <p className="mt-1 text-3xl font-semibold text-gray-900">{stats.activeAdmins}</p>
+              <p className="text-sm font-medium text-gray-500">Papéis cadastrados</p>
+              <p className="mt-1 text-3xl font-semibold text-gray-900">{stats.totalRoles}</p>
+              <p className="mt-1 text-xs text-gray-500">{stats.janusAdmins} usuários com janus_admin</p>
             </div>
             <div className="p-3 bg-purple-100 rounded-full">
               <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -71,8 +73,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, sidebarLinks }) => 
                 </svg>
               </div>
               <div className="ml-4">
-                <h3 className="text-sm font-medium text-gray-900">Create New Client</h3>
-                <p className="text-sm text-gray-500">Register a new OIDC client application</p>
+                <h3 className="text-sm font-medium text-gray-900">Criar novo cliente</h3>
+                <p className="text-sm text-gray-500">Registrar uma nova aplicação OIDC</p>
               </div>
             </a>
 
@@ -86,8 +88,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, sidebarLinks }) => 
                 </svg>
               </div>
               <div className="ml-4">
-                <h3 className="text-sm font-medium text-gray-900">Manage Users</h3>
-                <p className="text-sm text-gray-500">View and manage user accounts</p>
+                <h3 className="text-sm font-medium text-gray-900">Gerenciar usuários</h3>
+                <p className="text-sm text-gray-500">Ver contas e papéis atribuídos</p>
+              </div>
+            </a>
+
+            <a
+              href="/admin/roles"
+              className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <div className="p-2 bg-amber-100 rounded-md">
+                <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <h3 className="text-sm font-medium text-gray-900">Gerenciar papéis</h3>
+                <p className="text-sm text-gray-500">Criar e atribuir papéis globais ou de cliente</p>
               </div>
             </a>
           </div>

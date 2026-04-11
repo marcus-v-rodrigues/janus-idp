@@ -3,7 +3,7 @@ import 'express-session';
 
 declare module 'express-session' {
   interface SessionData {
-    adminUserId?: string;
+    adminUserSub?: string;
   }
 }
 
@@ -12,7 +12,7 @@ declare global {
     interface Request {
       adminUser?: {
         id: string;
-        role: string;
+        sub: string;
         email: string;
         name: string | null;
       };

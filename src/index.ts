@@ -48,6 +48,11 @@ async function startServer() {
     clients: clientsConfig as any,
     // O servidor aceita dinamicamente qualquer escopo que clientes possuam
     scopes: Array.from(supportedScopes),
+    claims: {
+      openid: ['sub'],
+      profile: ['name', 'roles'],
+      email: ['email', 'email_verified'],
+    },
     // Configuração para carregar Grants existentes e evitar loops de interação
     loadExistingGrant: async (ctx) => {
       console.log('[loadExistingGrant] Hook chamado');
@@ -206,6 +211,9 @@ async function startServer() {
         sameSite: 'lax',
       },
     },
+    routes: {
+      userinfo: '/userinfo',
+    },
     pkce: {
       required: () => true,
     },
@@ -221,6 +229,7 @@ async function startServer() {
     },
     features: {
       devInteractions: { enabled: false },
+      userinfo: { enabled: true },
       introspection: { enabled: true },
       revocation: { enabled: true },
       // Resource Indicators (RFC8707) - Necessário para emitir JWTs em vez de opaque tokens

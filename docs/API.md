@@ -392,8 +392,27 @@ O provedor OIDC expõe os endpoints padrão do protocolo no caminho `/oidc`:
 | GET | `/oidc/jwks` | Conjunto de chaves públicas |
 | GET | `/oidc/auth` | Endpoint de autorização |
 | POST | `/oidc/token` | Endpoint de token |
+| GET | `/oidc/userinfo` | Endpoint OIDC de informações do usuário |
 | POST | `/oidc/introspection` | Endpoint de introspecção |
 | POST | `/oidc/revocation` | Endpoint de revogação |
 | GET | `/oidc/end_session` | Logout (RP-Initiated Logout) |
+
+Exemplo de uso do `userinfo` com `curl`:
+
+```bash
+curl -H "Authorization: Bearer <access_token>" \
+  http://localhost:3000/oidc/userinfo
+```
+
+Exemplo de retorno do `GET /oidc/userinfo`:
+
+```json
+{
+  "sub": "123e4567-e89b-12d3-a456-426614174000",
+  "name": "Usuário de Exemplo",
+  "email": "usuario@exemplo.com",
+  "email_verified": true
+}
+```
 
 Para mais informações sobre o fluxo OIDC, consulte a documentação de [OpenID Connect Core](https://openid.net/connect/).

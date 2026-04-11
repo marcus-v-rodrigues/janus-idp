@@ -37,7 +37,7 @@ Para consumidores com NextAuth, o fluxo prático é:
 2. O cliente redireciona para o Janus via `/oidc/auth`.
 3. O Janus autentica o usuário e devolve `authorization_code`.
 4. O cliente troca o `code` por tokens em `/oidc/token`.
-5. O cliente lê as claims do `id_token` ou `userinfo` e decide o acesso localmente.
+5. O cliente lê as claims do `id_token` ou consulta `GET /oidc/userinfo` com o access token e decide o acesso localmente.
 
 Exemplo de configuração com NextAuth:
 
@@ -139,6 +139,24 @@ Exemplo das claims principais expostas no `id_token` ou em `userinfo`:
     ]
   }
 }
+```
+
+Exemplo de resposta do `GET /oidc/userinfo`:
+
+```json
+{
+  "sub": "123e4567-e89b-12d3-a456-426614174000",
+  "name": "Usuário de Exemplo",
+  "email": "usuario@exemplo.com",
+  "email_verified": true
+}
+```
+
+Exemplo de requisição com `curl`:
+
+```bash
+curl -H "Authorization: Bearer <access_token>" \
+  http://localhost:3000/oidc/userinfo
 ```
 
 No NextAuth, isso normalmente vira algo como:

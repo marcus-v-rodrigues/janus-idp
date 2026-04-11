@@ -1,4 +1,4 @@
-import { KoaContextWithOIDC } from 'oidc-provider';
+import { KoaContextWithOIDC, type Account, type AccountClaims, type ClaimsParameterMember } from 'oidc-provider';
 import { db } from '../adapter';
 import { schema } from '../db';
 import { eq } from 'drizzle-orm';
@@ -14,7 +14,7 @@ export async function findAccount(
   ctx: KoaContextWithOIDC,
   sub: string,
   token?: any
-): Promise<undefined | { accountId: string; async: any; claims: (...args: any[]) => any }> {
+): Promise<Account | undefined> {
   try {
     const result = await db.select().from(users).where(eq(users.sub, sub)).limit(1);
     const user = result[0];
@@ -36,40 +36,34 @@ export async function findAccount(
 
     return {
       accountId: user.sub,
-      async: () => {
-        return {
-          sub: user.sub,
-          email: user.email,
-          email_verified: user.emailVerified,
-          name: user.name || user.email,
-          roles: {
-            global: globalRoles,
-            client: clientRoles,
-          },
-        };
-      },
-      claims: (...scopes: string[]) => {
-        const claims: any = {
+      claims: async (
+        use: string,
+        scope: string,
+        claims: { [key: string]: null | ClaimsParameterMember },
+        rejected: string[],
+      ): Promise<AccountClaims> => {
+        const scopes = new Set(scope.split(' '));
+        const result: AccountClaims = {
           sub: user.sub,
         };
 
-        for (const scope of scopes) {
-          switch (scope) {
-            case 'profile':
-              claims.name = user.name || user.email;
-              claims.roles = {
-                global: globalRoles,
-                client: clientRoles,
-              };
-              break;
-            case 'email':
-              claims.email = user.email;
-              claims.email_verified = user.emailVerified;
-              break;
-          }
+        if (scopes.has('profile')) {
+          result.name = user.name || user.email;
         }
 
-        return claims;
+        if (scopes.has('email')) {
+          result.email = user.email;
+          result.email_verified = user.emailVerified;
+        }
+
+        if (use === 'id_token' && scopes.has('profile')) {
+          result.roles = {
+            global: globalRoles,
+            client: clientRoles,
+          };
+        }
+
+        return result;
       },
     };
   } catch (err) {

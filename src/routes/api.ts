@@ -12,7 +12,6 @@ import {
   ensureGlobalRole,
   ensureUserRole,
   getUserRoles,
-  userHasClientAccess,
 } from '../services/rbac';
 
 const router = Router();
@@ -31,7 +30,7 @@ function validateEmail(email: string): boolean {
   return emailRegex.test(email);
 }
 
-async function formatUserResponse(user: typeof users.$inferSelect, clientId?: string) {
+async function formatUserResponse(user: typeof users.$inferSelect) {
   const roles = await getUserRoles(user.id);
   const globalRoles = roles.filter((role) => role.scopeType === 'GLOBAL');
   const clientRoles = roles.filter((role) => role.scopeType === 'CLIENT');
@@ -49,7 +48,6 @@ async function formatUserResponse(user: typeof users.$inferSelect, clientId?: st
       code: role.code,
       clientId: role.clientId,
     })),
-    assignedToClient: clientId ? await userHasClientAccess(user.id, clientId) : undefined,
   };
 }
 
@@ -116,7 +114,7 @@ router.post('/users', ensureServiceKey, async (req: Request, res: Response) => {
         await ensureUserRole(existingUser.id, clientRole.id, null);
       }
 
-      const response = await formatUserResponse(existingUser, clientId);
+      const response = await formatUserResponse(existingUser);
 
       return res.status(200).json({
         ...response,
@@ -152,7 +150,7 @@ router.post('/users', ensureServiceKey, async (req: Request, res: Response) => {
       await ensureUserRole(user.id, clientRole.id, null);
     }
 
-    const response = await formatUserResponse(user, clientId);
+    const response = await formatUserResponse(user);
 
     return res.status(201).json({
       ...response,

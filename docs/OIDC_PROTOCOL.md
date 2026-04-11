@@ -29,6 +29,136 @@ sequenceDiagram
     J->>C: Retorna ID Token, Access Token e Refresh Token
 ```
 
+## Exemplo de Integração com NextAuth
+
+Para consumidores com NextAuth, o fluxo prático é:
+
+1. O usuário inicia o login no cliente.
+2. O cliente redireciona para o Janus via `/oidc/auth`.
+3. O Janus autentica o usuário e devolve `authorization_code`.
+4. O cliente troca o `code` por tokens em `/oidc/token`.
+5. O cliente lê as claims do `id_token` ou `userinfo` e decide o acesso localmente.
+
+Exemplo de configuração com NextAuth:
+
+```ts
+import NextAuth from 'next-auth';
+
+export const authOptions = {
+  providers: [
+    {
+      id: 'janus',
+      name: 'Janus',
+      type: 'oidc',
+      issuer: process.env.JANUS_ISSUER,
+      wellKnown: `${process.env.JANUS_ISSUER}/.well-known/openid-configuration`,
+      clientId: process.env.JANUS_CLIENT_ID,
+      clientSecret: process.env.JANUS_CLIENT_SECRET,
+      authorization: {
+        params: {
+          scope: 'openid profile email offline_access',
+        },
+      },
+      checks: ['pkce', 'state'],
+      profile(profile) {
+        return {
+          id: profile.sub,
+          name: profile.name,
+          email: profile.email,
+          roles: profile.roles,
+        };
+      },
+    },
+  ],
+  callbacks: {
+    async jwt({ token, profile }) {
+      if (profile) {
+        token.roles = profile.roles;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      session.user.roles = token.roles;
+      return session;
+    },
+  },
+};
+```
+
+No cliente, a autorização de rota fica assim:
+
+```ts
+const globalRoles = session?.user?.roles?.global ?? [];
+const clientRoles = session?.user?.roles?.client ?? [];
+
+const canEnterAdmin = globalRoles.includes('janus_admin');
+const canEnterApp = clientRoles.some((role) => role.clientId === 'ux-auditor');
+```
+
+## Exemplo de Resposta no Login Bem-Sucedido
+
+Depois que o usuário autentica e o cliente troca o `authorization_code` no endpoint `/oidc/token`, o cliente recebe os tokens OIDC e monta a sessão localmente.
+
+Exemplo de resposta do `token endpoint`:
+
+```json
+{
+  "token_type": "Bearer",
+  "access_token": "eyJhbGciOiJSUzI1NiIs...",
+  "id_token": "eyJhbGciOiJSUzI1NiIs...",
+  "expires_in": 3600,
+  "scope": "openid profile email"
+}
+```
+
+Se o cliente solicitar `offline_access`, também pode receber `refresh_token`:
+
+```json
+{
+  "token_type": "Bearer",
+  "access_token": "eyJhbGciOiJSUzI1NiIs...",
+  "id_token": "eyJhbGciOiJSUzI1NiIs...",
+  "refresh_token": "eyJhbGciOiJSUzI1NiIs...",
+  "expires_in": 3600,
+  "scope": "openid profile email offline_access"
+}
+```
+
+Exemplo das claims principais expostas no `id_token` ou em `userinfo`:
+
+```json
+{
+  "sub": "123e4567-e89b-12d3-a456-426614174000",
+  "name": "Usuário de Exemplo",
+  "email": "usuario@exemplo.com",
+  "email_verified": false,
+  "roles": {
+    "global": ["user"],
+    "client": [
+      { "code": "user", "clientId": "ux-auditor" }
+    ]
+  }
+}
+```
+
+No NextAuth, isso normalmente vira algo como:
+
+```json
+{
+  "user": {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "name": "Usuário de Exemplo",
+    "email": "usuario@exemplo.com",
+    "roles": {
+      "global": ["user"],
+      "client": [
+        { "code": "user", "clientId": "ux-auditor" }
+      ]
+    }
+  }
+}
+```
+
 ## Fundamentação Matemática: Criptografia de Tokens (JWT)
 
 O Janus-IDP emite tokens no formato **JWT** (JSON Web Token), assinados com a chave privada do servidor. A verificação da assinatura por parte do cliente segue a lógica:

@@ -102,6 +102,82 @@ O Janus IdP possui um portal administrativo completo para gerenciamento do siste
 4. **Scope**: `openid profile email`
 5. **Redirect URI**: `http://localhost:3001/api/auth/callback/janus`
 
+### Integração com NextAuth
+
+Se estiver usando NextAuth, o papel do Janus é autenticar o usuário e devolver as claims. O app cliente usa essas claims para montar a sessão e proteger as rotas.
+
+```ts
+import NextAuth from 'next-auth';
+
+export const authOptions = {
+  providers: [
+    {
+      id: 'janus',
+      name: 'Janus',
+      type: 'oidc',
+      issuer: process.env.JANUS_ISSUER,
+      wellKnown: `${process.env.JANUS_ISSUER}/.well-known/openid-configuration`,
+      clientId: process.env.JANUS_CLIENT_ID,
+      clientSecret: process.env.JANUS_CLIENT_SECRET,
+      authorization: {
+        params: {
+          scope: 'openid profile email offline_access',
+        },
+      },
+      checks: ['pkce', 'state'],
+      profile(profile) {
+        return {
+          id: profile.sub,
+          name: profile.name,
+          email: profile.email,
+          roles: profile.roles,
+        };
+      },
+    },
+  ],
+  callbacks: {
+    async jwt({ token, profile }) {
+      if (profile) {
+        token.roles = profile.roles;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      session.user.roles = token.roles;
+      return session;
+    },
+  },
+};
+```
+
+Exemplo de uso no cliente:
+
+```ts
+const globalRoles = session?.user?.roles?.global ?? [];
+const clientRoles = session?.user?.roles?.client ?? [];
+
+const canAccessAdmin = globalRoles.includes('janus_admin');
+const canAccessClient = clientRoles.some((role) => role.clientId === 'ux-auditor');
+```
+
+Exemplo do que o cliente recebe após login bem-sucedido:
+
+```json
+{
+  "user": {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "name": "Usuário de Exemplo",
+    "email": "usuario@exemplo.com",
+    "roles": {
+      "global": ["user"],
+      "client": [
+        { "code": "user", "clientId": "ux-auditor" }
+      ]
+    }
+  }
+}
+```
+
 ### Endpoints OIDC
 
 Acesse a configuração do OpenID:

@@ -8,8 +8,6 @@ import { renderView } from '../utils/renderer';
 import { Login } from '../views/oidc/Login';
 import { Consent } from '../views/oidc/Consent';
 import { Error as ErrorView } from '../views/oidc/Error';
-import { userHasClientAccess } from '../services/rbac';
-
 const router = Router();
 
 const { users, oidcPayloads } = schema;
@@ -231,8 +229,9 @@ export default function interactionRoutes(oidc: Provider): Router {
   });
 
   /**
-   * Rota para submissão do formulário de login
-   * Implementa verificação de autorização: usuário deve estar vinculado ao cliente
+   * Rota para submissão do formulário de login.
+   * O Janus autentica o usuário e encerra a interação OIDC.
+   * A autorização de acesso ao cliente deve ser tratada pelo próprio cliente.
    * Nota: O path deve ser /oidc/interaction/:uid/login para compartilhar cookies com o OIDC Provider
    */
   router.post('/oidc/interaction/:uid/login', async (req: Request, res: Response, next) => {
@@ -288,22 +287,7 @@ export default function interactionRoutes(oidc: Provider): Router {
         }, { title: 'Entrar' });
       }
 
-      const hasClientAccess = await userHasClientAccess(user.id, client.clientId);
-
-      if (!hasClientAccess) {
-        console.log(`[Interaction] Access denied: user ${user.sub} not authorized for client ${client.clientId}`);
-
-        return renderView(res, ErrorView, {
-          error: 'Acesso negado',
-          message: 'Você está autenticado, mas não tem autorização para acessar esta aplicação.',
-        }, {
-          title: 'Acesso negado',
-          componentName: 'Error',
-          enableHydration: true
-        });
-      }
-
-      console.log(`[Interaction] Access granted: user ${user.sub} authorized for client ${client.clientId}`);
+      console.log(`[Interaction] Login validado para user ${user.sub} no cliente ${client.clientId}; a autorização final fica com o cliente.`);
 
       // Cria o resultado da interação de login
       const result2 = {

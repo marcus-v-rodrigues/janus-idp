@@ -22,7 +22,7 @@ http://localhost:3000/api
 
 ### Criar Usuário
 
-Cria um novo usuário no sistema e garante o papel global `user`. Se `clientId` for informado, o endpoint também atribui o papel padrão do cliente, sem usar uma tabela de vínculo direto entre usuário e cliente.
+Cria um novo usuário no sistema e garante o papel global `user`. Se `clientId` for informado, o endpoint também atribui o papel padrão do cliente e devolve os papéis globais e específicos do cliente na resposta.
 
 **Endpoint**: `POST /api/users`
 
@@ -73,7 +73,6 @@ A API possui comportamento idempotente para facilitar integrações:
   "clientRoles": [
     { "code": "user", "clientId": "meu-cliente-oidc" }
   ],
-  "assignedToClient": true,
   "created": true,
   "clientRoleCode": "user"
 }
@@ -93,7 +92,6 @@ A API possui comportamento idempotente para facilitar integrações:
   "clientRoles": [
     { "code": "user", "clientId": "meu-cliente-oidc" }
   ],
-  "assignedToClient": true,
   "created": false,
   "clientRoleCode": "user"
 }
@@ -276,15 +274,16 @@ async function createUserWithRetry(userData, maxRetries = 3) {
 }
 ```
 
-## Controle de Acesso Granular
+## Papéis e Acesso no Cliente
 
-O Janus IdP implementa um sistema de controle de acesso granular que vincula usuários a clientes específicos. Isso garante que cada usuário só possa acessar as aplicações cliente às quais foi explicitamente autorizado.
+O Janus IdP autentica o usuário e devolve os papéis dele no retorno da API e nas claims OIDC. A decisão de acesso a rotas e funcionalidades passa a ser responsabilidade do cliente.
 
 ### Como Funciona
 
-1. **Criação de Usuário**: Ao criar um usuário via API, o campo `clientId` é obrigatório e define qual cliente o usuário poderá acessar
-2. **Vínculo Múltiplo**: Um usuário pode ser vinculado a múltiplos clientes através de múltiplas chamadas à API
-3. **Verificação no Login**: Durante o fluxo OIDC, o sistema verifica se o usuário tem permissão para acessar o cliente solicitante
+1. **Criação de Usuário**: Ao criar um usuário via API, o campo `clientId` atribui o papel padrão daquele cliente
+2. **Vínculo Múltiplo**: Um usuário pode receber papéis de vários clientes em chamadas diferentes
+3. **Autenticação OIDC**: No login, o Janus autentica o usuário e emite os papéis globais e de cliente
+4. **Autorização no App**: O cliente usa esses papéis para proteger rotas e tratar acesso negado
 
 ### Exemplo de Múltiplos Vínculos
 
@@ -303,7 +302,7 @@ await fetch('http://localhost:3000/api/users', {
     clientId: 'cliente-app-1'
   })
 });
-// Retorno: 201 Created, isNewLink: true
+// Retorno: 201 Created
 
 // Segundo vínculo - adiciona acesso a outro cliente
 await fetch('http://localhost:3000/api/users', {
@@ -318,7 +317,7 @@ await fetch('http://localhost:3000/api/users', {
     clientId: 'cliente-app-2'
   })
 });
-// Retorno: 200 OK, isNewLink: true
+// Retorno: 200 OK
 
 // Tentativa duplicada - idempotente
 await fetch('http://localhost:3000/api/users', {
@@ -333,14 +332,33 @@ await fetch('http://localhost:3000/api/users', {
     clientId: 'cliente-app-2'
   })
 });
-// Retorno: 200 OK, isNewLink: false (já vinculado)
+// Retorno: 200 OK
 ```
 
-### Erro de Acesso Negado
+### Claims OIDC
 
-Se um usuário tentar fazer login em uma aplicação cliente à qual não está vinculado, ele verá uma mensagem de erro:
+Quando o cliente solicita o escopo `profile`, o Janus inclui uma claim `roles` com a seguinte estrutura:
 
+```json
+{
+  "roles": {
+    "global": ["user"],
+    "client": [
+      { "code": "user", "clientId": "meu-cliente-oidc" }
+    ]
+  }
+}
 ```
+
+O cliente deve usar essas claims para decidir acesso a páginas, rotas e recursos.
+
+### Acesso Negado no Cliente
+
+Se o usuário não tiver o papel necessário para uma rota ou área do app, o próprio cliente deve mostrar a interface de acesso negado.
+
+Exemplo de mensagem:
+
+```text
 Access Denied
 Você não tem permissão para acessar esta aplicação. Entre em contato com o administrador para solicitar acesso.
 ```

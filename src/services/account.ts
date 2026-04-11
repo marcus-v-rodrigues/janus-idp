@@ -2,6 +2,7 @@ import { KoaContextWithOIDC } from 'oidc-provider';
 import { db } from '../adapter';
 import { schema } from '../db';
 import { eq } from 'drizzle-orm';
+import { getUserRoles } from './rbac';
 
 const { users } = schema;
 
@@ -22,6 +23,17 @@ export async function findAccount(
       return undefined;
     }
 
+    const userRoles = await getUserRoles(user.id);
+    const globalRoles = userRoles.filter((role) => role.scopeType === 'GLOBAL').map((role) => role.code);
+    const requestedClientId = ctx.oidc?.client?.clientId ?? token?.clientId ?? null;
+    const clientRoles = userRoles
+      .filter((role) => role.scopeType === 'CLIENT')
+      .filter((role) => !requestedClientId || role.clientId === requestedClientId)
+      .map((role) => ({
+        code: role.code,
+        clientId: role.clientId,
+      }));
+
     return {
       accountId: user.sub,
       async: () => {
@@ -30,6 +42,10 @@ export async function findAccount(
           email: user.email,
           email_verified: user.emailVerified,
           name: user.name || user.email,
+          roles: {
+            global: globalRoles,
+            client: clientRoles,
+          },
         };
       },
       claims: (...scopes: string[]) => {
@@ -41,6 +57,10 @@ export async function findAccount(
           switch (scope) {
             case 'profile':
               claims.name = user.name || user.email;
+              claims.roles = {
+                global: globalRoles,
+                client: clientRoles,
+              };
               break;
             case 'email':
               claims.email = user.email;

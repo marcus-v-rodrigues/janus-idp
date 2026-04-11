@@ -49,7 +49,7 @@ COPY --from=builder /app/public ./public
 # Copia arquivos TypeScript e configs para poder rodar ts-node em produção
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
-COPY --from=builder /app/src/db ./src/db
+COPY --from=builder /app/src ./src
 COPY --from=builder /app/drizzle ./drizzle
 
 # Cria diretório para chaves RSA com permissões adequadas

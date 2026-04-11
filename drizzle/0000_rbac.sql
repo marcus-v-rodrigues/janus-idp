@@ -1,7 +1,59 @@
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";--> statement-breakpoint
 CREATE TYPE "public"."role_scope_type" AS ENUM('GLOBAL', 'CLIENT');--> statement-breakpoint
-ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "sub" uuid;--> statement-breakpoint
-UPDATE "User" SET "sub" = "id" WHERE "sub" IS NULL;--> statement-breakpoint
-ALTER TABLE "User" ALTER COLUMN "sub" SET NOT NULL;--> statement-breakpoint
+CREATE TABLE "User" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"sub" uuid NOT NULL,
+	"email" text NOT NULL,
+	"passwordHash" text NOT NULL,
+	"name" text,
+	"emailVerified" boolean DEFAULT false NOT NULL,
+	"createdAt" timestamp DEFAULT now() NOT NULL,
+	"updatedAt" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "User_email_unique" UNIQUE("email")
+);
+--> statement-breakpoint
+CREATE TABLE "Account" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"userId" uuid NOT NULL,
+	"type" text DEFAULT 'oauth' NOT NULL,
+	"provider" text DEFAULT 'local' NOT NULL,
+	"providerId" text NOT NULL,
+	"createdAt" timestamp DEFAULT now() NOT NULL,
+	"updatedAt" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "Client" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"clientId" text NOT NULL,
+	"clientSecret" text NOT NULL,
+	"name" text,
+	"logoUri" text,
+	"brandColor" text,
+	"redirectUris" text[] NOT NULL,
+	"postLogoutRedirectUris" text[] DEFAULT '{}' NOT NULL,
+	"grantTypes" text[] DEFAULT '{"authorization_code","refresh_token"}' NOT NULL,
+	"responseTypes" text[] DEFAULT '{"code"}' NOT NULL,
+	"scope" text DEFAULT 'openid profile email',
+	"createdAt" timestamp DEFAULT now() NOT NULL,
+	"updatedAt" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "Client_clientId_unique" UNIQUE("clientId")
+);
+--> statement-breakpoint
+CREATE TABLE "OidcPayload" (
+	"id" text PRIMARY KEY NOT NULL,
+	"type" text NOT NULL,
+	"payload" json NOT NULL,
+	"grantId" text,
+	"userCode" text,
+	"uid" text,
+	"expiresAt" timestamp,
+	"consumedAt" timestamp,
+	"createdAt" timestamp DEFAULT now() NOT NULL,
+	"updatedAt" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "OidcPayload_userCode_unique" UNIQUE("userCode"),
+	CONSTRAINT "OidcPayload_uid_unique" UNIQUE("uid")
+);
+--> statement-breakpoint
 CREATE TABLE "Role" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" text NOT NULL,
@@ -24,11 +76,18 @@ CREATE TABLE "UserRoleAssignment" (
 	"updatedAt" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_User_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "Role" ADD CONSTRAINT "Role_clientId_Client_clientId_fk" FOREIGN KEY ("clientId") REFERENCES "public"."Client"("clientId") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "UserRoleAssignment" ADD CONSTRAINT "UserRoleAssignment_userId_User_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "UserRoleAssignment" ADD CONSTRAINT "UserRoleAssignment_roleId_Role_id_fk" FOREIGN KEY ("roleId") REFERENCES "public"."Role"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "UserRoleAssignment" ADD CONSTRAINT "UserRoleAssignment_assignedByUserId_User_id_fk" FOREIGN KEY ("assignedByUserId") REFERENCES "public"."User"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "User_sub_key" ON "User" USING btree ("sub");--> statement-breakpoint
+CREATE UNIQUE INDEX "Account_provider_providerId_key" ON "Account" USING btree ("provider","providerId");--> statement-breakpoint
+CREATE INDEX "Account_userId_idx" ON "Account" USING btree ("userId");--> statement-breakpoint
+CREATE INDEX "OidcPayload_type_idx" ON "OidcPayload" USING btree ("type");--> statement-breakpoint
+CREATE INDEX "OidcPayload_grantId_idx" ON "OidcPayload" USING btree ("grantId");--> statement-breakpoint
+CREATE INDEX "OidcPayload_uid_idx" ON "OidcPayload" USING btree ("uid");--> statement-breakpoint
+CREATE INDEX "OidcPayload_expiresAt_idx" ON "OidcPayload" USING btree ("expiresAt");--> statement-breakpoint
 CREATE UNIQUE INDEX "Role_scopeKey_code_key" ON "Role" USING btree ("scopeKey","code");--> statement-breakpoint
 CREATE INDEX "Role_scopeType_idx" ON "Role" USING btree ("scopeType");--> statement-breakpoint
 CREATE INDEX "Role_clientId_idx" ON "Role" USING btree ("clientId");--> statement-breakpoint
@@ -51,28 +110,3 @@ FROM "Client" c
 WHERE NOT EXISTS (
 	SELECT 1 FROM "Role" r WHERE r."scopeKey" = 'CLIENT:' || c."clientId" AND r."code" = 'member'
 );--> statement-breakpoint
-INSERT INTO "UserRoleAssignment" ("id", "userId", "roleId", "assignedByUserId", "createdAt", "updatedAt")
-SELECT gen_random_uuid(), u."id", r."id", NULL, now(), now()
-FROM "User" u
-JOIN "Role" r ON r."scopeKey" = 'GLOBAL' AND r."code" = 'user'
-WHERE NOT EXISTS (
-	SELECT 1 FROM "UserRoleAssignment" ura WHERE ura."userId" = u."id" AND ura."roleId" = r."id"
-);--> statement-breakpoint
-INSERT INTO "UserRoleAssignment" ("id", "userId", "roleId", "assignedByUserId", "createdAt", "updatedAt")
-SELECT gen_random_uuid(), u."id", r."id", NULL, now(), now()
-FROM "User" u
-JOIN "Role" r ON r."scopeKey" = 'GLOBAL' AND r."code" = 'janus_admin'
-WHERE u."role" = 'ADMIN'
-AND NOT EXISTS (
-	SELECT 1 FROM "UserRoleAssignment" ura WHERE ura."userId" = u."id" AND ura."roleId" = r."id"
-);--> statement-breakpoint
-INSERT INTO "UserRoleAssignment" ("id", "userId", "roleId", "assignedByUserId", "createdAt", "updatedAt")
-SELECT gen_random_uuid(), uc."userId", r."id", NULL, now(), now()
-FROM "UserClient" uc
-JOIN "Role" r ON r."scopeKey" = 'CLIENT:' || uc."clientId" AND r."code" = 'member'
-WHERE NOT EXISTS (
-	SELECT 1 FROM "UserRoleAssignment" ura WHERE ura."userId" = uc."userId" AND ura."roleId" = r."id"
-);--> statement-breakpoint
-ALTER TABLE "User" DROP COLUMN IF EXISTS "role";--> statement-breakpoint
-DROP TABLE IF EXISTS "UserClient";--> statement-breakpoint
-DROP TYPE IF EXISTS "role";--> statement-breakpoint

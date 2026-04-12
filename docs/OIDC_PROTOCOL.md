@@ -213,6 +213,37 @@ No arquivo `src/index.ts`, o Janus configura tempos de vida (TTL) específicos p
 
 O Janus-IDP utiliza a extensão **Resource Indicators** para garantir que os tokens de acesso sejam emitidos no formato **JWT** em vez de tokens opacos. Isso permite que APIs externas (Resource Servers) validem o token localmente, sem a necessidade de uma chamada de introspecção constante ao Janus, reduzindo latência e carga no servidor de identidade.
 
+Pontos de contrato:
+
+- `client_id` identifica o cliente OAuth/OIDC que está pedindo autenticação.
+- `aud` identifica o Resource Server que será o consumidor do access token.
+- O `aud` do access token JWT é derivado do `resource` efetivo processado pelo `oidc-provider`.
+- O `id_token` continua com `aud = client_id`, que é o comportamento normal do OIDC.
+- O `defaultResource` existe apenas como fallback controlado quando o client não envia `resource`.
+- O caminho preferencial é sempre o client enviar `resource` explicitamente, especialmente em integrações como o dashboard.
+
+## Política de Resource Indicators no Janus
+
+O comportamento atual do Janus é configurável por ambiente:
+
+- `JANUS_RESOURCE_INDICATOR_POLICY=fallback`: usa `JANUS_DEFAULT_RESOURCE` quando `resource` não vem na requisição.
+- `JANUS_RESOURCE_INDICATOR_POLICY=require`: rejeita requests sem `resource` explícito.
+
+Isso mantém compatibilidade com clients antigos, mas deixa claro que o fallback não é o contrato principal do ecossistema.
+
+Exemplo de autorização explícita:
+
+```ts
+authorization: {
+  params: {
+    scope: 'openid profile email',
+    resource: 'http://localhost:3000/oidc/api',
+  },
+},
+```
+
+Nesse modelo, o access token JWT refletirá o `resource` enviado pelo client como audience efetiva.
+
 ## Contrato Canônico de Claims
 
 O Janus emite `roles` como contrato canônico de autorização em dois pontos do fluxo OIDC:

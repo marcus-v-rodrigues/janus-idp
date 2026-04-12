@@ -101,8 +101,11 @@ O Janus IdP possui um portal administrativo completo para gerenciamento do siste
 3. **Client ID**: `ux-auditor` (criado automaticamente pelo seed)
 4. **Scope**: `openid profile email offline_access`
 5. **Redirect URI**: `http://localhost:3001/api/auth/callback/janus`
+6. **Resource**: enviar explicitamente quando o client quiser um audience específico para a API
 
 O cliente `ux-auditor` é configurado pelo seed com `authorization_code` e `refresh_token`, então o `offline_access` funciona de forma consistente quando o cliente o solicitar.
+
+Se o client precisar de um access token JWT com audience da API, ele deve enviar `resource` na requisição OIDC. O `defaultResource` existe apenas como fallback controlado para compatibilidade.
 
 ### Integração com NextAuth
 

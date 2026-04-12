@@ -1,4 +1,4 @@
-import { Provider, Configuration } from 'oidc-provider';
+import { Provider, Configuration, errors } from 'oidc-provider';
 import express from 'express';
 import * as dotenv from 'dotenv';
 import helmet from 'helmet';
@@ -16,6 +16,28 @@ dotenv.config();
 
 const port = process.env.APP_PORT || 3000;
 const issuer = process.env.ISSUER_URL || `http://localhost:${port}/oidc`;
+const resourceIndicatorPolicy = process.env.JANUS_RESOURCE_INDICATOR_POLICY === 'require'
+  ? 'require'
+  : 'fallback';
+const defaultResourceIndicator = process.env.JANUS_DEFAULT_RESOURCE || `${issuer}/api`;
+const resourceIndicatorState = new WeakMap<object, {
+  requestedResource?: string | string[];
+  effectiveResourceIndicator: string;
+  fallbackUsed: boolean;
+  policy: typeof resourceIndicatorPolicy;
+}>();
+
+function logResourceIndicatorEvent(event: string, details: Record<string, unknown>) {
+  console.info(`[OIDC][resourceIndicators] ${event}`, details);
+}
+
+function getClientId(client?: { clientId?: string } | null) {
+  return client?.clientId ?? 'unknown-client';
+}
+
+function getRequestedResource(ctx: { oidc?: { params?: { resource?: string | string[] } } }) {
+  return ctx.oidc?.params?.resource;
+}
 
 async function startServer() {
   // 1. Busca todos os clientes cadastrados no banco
@@ -233,25 +255,64 @@ async function startServer() {
       introspection: { enabled: true },
       revocation: { enabled: true },
       // Resource Indicators (RFC8707) - Necessário para emitir JWTs em vez de opaque tokens
-      // Quando habilitado, permite configurar o formato do access token como JWT
+      // O caminho preferencial é o client enviar `resource` explicitamente.
+      // O fallback controlado só existe para preservar compatibilidade durante a transição.
       resourceIndicators: {
         enabled: true,
-        // Define um recurso padrão quando o cliente não especifica um
-        // Isso garante que JWTs sejam emitidos mesmo sem o parâmetro 'resource'
+        // Fallback controlado quando o cliente não envia `resource`.
+        // Em modo `require`, a ausência de `resource` é rejeitada explicitamente.
         defaultResource: async (ctx, client, oneOf) => {
-          // Retorna um resource indicator padrão baseado no issuer
-          // Isso permite que access tokens JWT sejam emitidos sem parâmetro resource explícito
-          return `${issuer}/api`;
+          const clientId = getClientId(client);
+          const requestedResource = getRequestedResource(ctx) ?? oneOf ?? null;
+
+          if (resourceIndicatorPolicy === 'require') {
+            logResourceIndicatorEvent('missing-resource-rejected', {
+              client_id: clientId,
+              requested_resource: requestedResource,
+              policy: resourceIndicatorPolicy,
+            });
+
+            throw new errors.InvalidTarget('resource indicator must be provided explicitly');
+          }
+
+          const effectiveResourceIndicator = defaultResourceIndicator;
+          resourceIndicatorState.set(ctx as object, {
+            requestedResource: requestedResource ?? undefined,
+            effectiveResourceIndicator,
+            fallbackUsed: true,
+            policy: resourceIndicatorPolicy,
+          });
+
+          logResourceIndicatorEvent('missing-resource-fallback', {
+            client_id: clientId,
+            requested_resource: requestedResource,
+            fallback_resource: effectiveResourceIndicator,
+            policy: resourceIndicatorPolicy,
+          });
+
+          return effectiveResourceIndicator;
         },
-        // Retorna a configuração do Resource Server para o escopo solicitado
-        // Configura todos os access tokens como JWT por padrão
+        // Retorna a configuração do Resource Server para o resource indicator efetivo.
+        // O `aud` do access token JWT continua sendo controlado pelo fluxo do oidc-provider.
         getResourceServerInfo: async (ctx, resourceIndicator, client) => {
+          const clientId = getClientId(client);
+          const resourceState = resourceIndicatorState.get(ctx as object);
+          const fallbackUsed = resourceState?.fallbackUsed ?? false;
+
+          logResourceIndicatorEvent('resource-server-resolved', {
+            client_id: clientId,
+            requested_resource: resourceState?.requestedResource ?? getRequestedResource(ctx) ?? null,
+            effective_resource: resourceIndicator,
+            fallback_used: fallbackUsed,
+            policy: resourceState?.policy ?? resourceIndicatorPolicy,
+            audience: resourceIndicator,
+          });
+
           return {
             scope: Array.from(supportedScopes).join(' '),
-            // IMPORTANTE: Define o formato do access token como JWT
-            // Isso faz com que o UX Auditor consiga validar o token
+            // IMPORTANTE: Define o formato do access token como JWT.
             accessTokenFormat: 'jwt',
-            // Configuração da assinatura JWT usando RS256 (mesmo algoritmo das chaves JWKS)
+            // Configuração da assinatura JWT usando RS256.
             jwt: {
               sign: { alg: 'RS256' },
             },
@@ -330,6 +391,10 @@ async function startServer() {
   });
 
   const oidc = new Provider(issuer, configuration);
+  console.info('[OIDC][resourceIndicators] policy-configured', {
+    policy: resourceIndicatorPolicy,
+    default_resource: defaultResourceIndicator,
+  });
 
   // Listener para capturar erros do servidor OIDC
   oidc.on('server_error', (ctx, error) => {

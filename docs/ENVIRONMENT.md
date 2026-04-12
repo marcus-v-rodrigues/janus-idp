@@ -43,6 +43,8 @@ DATABASE_URL="postgresql://janus_admin:123_senha_segura@localhost:5432/janus-db?
 |----------|--------|-----------|
 | `ISSUER_URL` | `http://localhost:3000/oidc` | URL base do provedor OpenID Connect |
 | `COOKIE_KEYS` | Duas chaves padrão | Lista de chaves separadas por vírgulas para assinatura de cookies (OIDC) |
+| `JANUS_RESOURCE_INDICATOR_POLICY` | `fallback` | Política para `resource`: `fallback` usa `JANUS_DEFAULT_RESOURCE`; `require` rejeita requests sem `resource` explícito |
+| `JANUS_DEFAULT_RESOURCE` | `${ISSUER_URL}/api` | Resource indicator de fallback controlado, usado apenas quando o client omite `resource` |
 
 ### Usuário Administrador
 
@@ -129,6 +131,8 @@ DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST
 
 # OIDC Configuration
 ISSUER_URL=http://localhost:3000/oidc
+JANUS_RESOURCE_INDICATOR_POLICY=fallback
+JANUS_DEFAULT_RESOURCE=http://localhost:3000/oidc/api
 
 # Cookie Keys (lista separada por vírgulas)
 COOKIE_KEYS=chave_secreta_1_aleatoria_very_long,outra_chave_secreta_2
@@ -181,6 +185,14 @@ Além das variáveis definidas no `.env`, o sistema usa:
 | Variável | Fonte | Descrição |
 |----------|-------|-----------|
 | `PORT` | Sistema ou APP_PORT | Porta onde o servidor está rodando |
+
+### Resource Indicators
+
+Para APIs protegidas pelo Janus, o caminho preferencial é o client enviar `resource` explicitamente na autorização OIDC.
+
+- Use `JANUS_RESOURCE_INDICATOR_POLICY=require` quando quiser forçar audience explícita em produção.
+- Use `JANUS_RESOURCE_INDICATOR_POLICY=fallback` quando precisar manter compatibilidade com clients legados.
+- O `JANUS_DEFAULT_RESOURCE` é apenas fallback técnico. Ele não deve ser tratado como contrato oficial entre client e API.
 
 ## Segurança em Produção
 

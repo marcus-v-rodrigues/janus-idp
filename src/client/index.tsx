@@ -33,6 +33,9 @@ async function importComponent(componentName: string): Promise<React.FC<any> | n
       case 'Consent':
         const { Consent } = await import('../views/oidc/Consent');
         return Consent;
+      case 'Register':
+        const { Register } = await import('../views/oidc/Register');
+        return Register;
       case 'Error':
         const { Error: ErrorComponent } = await import('../views/oidc/Error');
         return ErrorComponent;

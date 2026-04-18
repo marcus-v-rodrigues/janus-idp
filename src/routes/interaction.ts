@@ -6,8 +6,12 @@ import { eq, and } from 'drizzle-orm';
 import * as bcrypt from 'bcryptjs';
 import { renderView } from '../utils/renderer';
 import { Login } from '../views/oidc/Login';
+import { Register } from '../views/oidc/Register';
 import { Consent } from '../views/oidc/Consent';
 import { Error as ErrorView } from '../views/oidc/Error';
+import { DEFAULT_GLOBAL_USER_ROLE_CODE, ensureGlobalRole, ensureUserRole } from '../services/rbac';
+import crypto from 'crypto';
+
 const router = Router();
 
 const { users, oidcPayloads } = schema;
@@ -436,6 +440,125 @@ export default function interactionRoutes(oidc: Provider): Router {
       };
       await oidc.interactionFinished(req, res, result, { mergeWithLastSubmission: false });
     } catch (err) {
+      next(err);
+    }
+  });
+
+  /**
+   * Rota para renderizar a tela de criação de conta (registro).
+   */
+  router.get('/oidc/interaction/:uid/register', async (req: Request, res: Response, next) => {
+    try {
+      const { uid, params } = await oidc.interactionDetails(req, res);
+      const client = await oidc.Client.find(params.client_id as string);
+
+      if (!client) {
+        return res.status(400).send('Client not found');
+      }
+
+      return renderView(res, Register, {
+        uid,
+        client: {
+          clientId: client.clientId,
+          name: (client as any).name || null,
+          logoUri: (client as any).logoUri || null,
+          brandColor: (client as any).brandColor || null,
+        },
+        params,
+      }, {
+        title: 'Criar Conta',
+        componentName: 'Register',
+        enableHydration: true
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  /**
+   * Rota para processar a criação de conta.
+   */
+  router.post('/oidc/interaction/:uid/register', async (req: Request, res: Response, next) => {
+    try {
+      const { uid, params } = await oidc.interactionDetails(req, res);
+      const client = await oidc.Client.find(params.client_id as string);
+
+      if (!client) {
+        return res.status(400).send('Client not found');
+      }
+
+      const clientData = {
+        clientId: client.clientId,
+        name: (client as any).name || null,
+        logoUri: (client as any).logoUri || null,
+        brandColor: (client as any).brandColor || null,
+      };
+
+      const { email, password, name } = req.body;
+
+      // Validação básica
+      if (!email || !password || !name) {
+        return renderView(res, Register, {
+          uid,
+          client: clientData,
+          params,
+          flash: 'Todos os campos são obrigatórios.',
+        }, { title: 'Criar Conta' });
+      }
+
+      if (password.length < 6) {
+        return renderView(res, Register, {
+          uid,
+          client: clientData,
+          params,
+          flash: 'A senha deve ter pelo menos 6 caracteres.',
+        }, { title: 'Criar Conta' });
+      }
+
+      // Verifica se o email já está em uso
+      const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      if (existing[0]) {
+        return renderView(res, Register, {
+          uid,
+          client: clientData,
+          params,
+          flash: 'Este email já está cadastrado. Tente fazer login.',
+        }, { title: 'Criar Conta' });
+      }
+
+      // Cria o usuário
+      const passwordHash = await bcrypt.hash(password, 10);
+      const subject = crypto.randomUUID();
+
+      const [user] = await db.insert(users).values({
+        id: subject,
+        sub: subject,
+        email,
+        passwordHash,
+        name: name || null,
+        emailVerified: false,
+      }).returning();
+
+      // Atribui o papel básico global
+      const userRole = await ensureGlobalRole(
+        DEFAULT_GLOBAL_USER_ROLE_CODE,
+        'Usuário',
+        'Papel base para contas normais',
+        true,
+      );
+      await ensureUserRole(user.id, userRole.id, null);
+
+      console.log(`[Interaction] Nova conta criada: ${user.email} (${user.sub})`);
+
+      return renderView(res, Register, {
+        uid,
+        client: clientData,
+        params,
+        success: 'Conta criada com sucesso! Você já pode entrar.',
+      }, { title: 'Criar Conta' });
+
+    } catch (err) {
+      console.error('[Interaction] Erro no registro:', err);
       next(err);
     }
   });

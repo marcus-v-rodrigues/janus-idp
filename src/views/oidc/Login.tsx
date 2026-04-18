@@ -89,6 +89,18 @@ export const Login: React.FC<LoginProps> = ({ uid, client, params, flash }) => {
           >
             Entrar
           </Button>
+
+          <div className="mt-4 text-center">
+            <p className="text-sm text-gray-600">
+              Não tem uma conta?{' '}
+              <a 
+                href={`/oidc/interaction/${uid}/register`} 
+                className="font-medium text-blue-600 hover:text-blue-500"
+              >
+                Criar conta
+              </a>
+            </p>
+          </div>
         </form>
 
         <div className="mt-6 text-center">

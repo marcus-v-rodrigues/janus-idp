@@ -6,12 +6,12 @@ import { schema } from '../db';
 import { eq } from 'drizzle-orm';
 import { ensureServiceKey } from '../middleware/auth';
 import {
-  DEFAULT_CLIENT_ROLE_CODE,
   DEFAULT_GLOBAL_USER_ROLE_CODE,
-  ensureClientDefaultRole,
   ensureGlobalRole,
   ensureUserRole,
   getUserRoles,
+  getRoleByScopeAndCode,
+  removeUserRole,
 } from '../services/rbac';
 
 const router = Router();
@@ -22,7 +22,13 @@ interface CreateUserBody {
   email: string;
   password: string;
   name?: string;
-  clientId?: string;
+}
+
+interface RoleAssignmentBody {
+  email: string;
+  clientId: string;
+  roleCode: string;
+  action: 'add' | 'remove';
 }
 
 function validateEmail(email: string): boolean {
@@ -51,9 +57,9 @@ async function formatUserResponse(user: typeof users.$inferSelect) {
   };
 }
 
-router.post('/users', ensureServiceKey, async (req: Request, res: Response) => {
+router.post('/register', ensureServiceKey, async (req: Request, res: Response) => {
   try {
-    const { email, password, name, clientId } = req.body as CreateUserBody;
+    const { email, password, name } = req.body as CreateUserBody;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -76,50 +82,13 @@ router.post('/users', ensureServiceKey, async (req: Request, res: Response) => {
       });
     }
 
-    let client = null;
-    if (clientId) {
-      const clientResult = await db.select().from(clients).where(eq(clients.clientId, clientId)).limit(1);
-      client = clientResult[0] ?? null;
-
-      if (!client) {
-        return res.status(400).json({
-          error: 'Invalid client',
-          message: 'The specified client does not exist',
-        });
-      }
-    }
-
     const existingResult = await db.select().from(users).where(eq(users.email, email)).limit(1);
     const existingUser = existingResult[0];
 
     if (existingUser) {
-      const isValidPassword = await bcrypt.compare(password, existingUser.passwordHash);
-      if (!isValidPassword) {
-        return res.status(401).json({
-          error: 'Invalid credentials',
-          message: 'A user with this email already exists but the password is incorrect',
-        });
-      }
-
-      const userRole = await ensureGlobalRole(
-        DEFAULT_GLOBAL_USER_ROLE_CODE,
-        'Usuário',
-        'Papel base para contas normais',
-        true,
-      );
-      await ensureUserRole(existingUser.id, userRole.id, null);
-
-      if (clientId && client) {
-        const clientRole = await ensureClientDefaultRole(client.clientId);
-        await ensureUserRole(existingUser.id, clientRole.id, null);
-      }
-
-      const response = await formatUserResponse(existingUser);
-
-      return res.status(200).json({
-        ...response,
-        created: false,
-        clientRoleCode: clientId ? DEFAULT_CLIENT_ROLE_CODE : null,
+      return res.status(409).json({
+        error: 'User already exists',
+        message: 'A user with this email is already registered',
       });
     }
 
@@ -135,6 +104,7 @@ router.post('/users', ensureServiceKey, async (req: Request, res: Response) => {
       emailVerified: false,
     }).returning();
 
+    // Atribui apenas o papel básico global
     const userRole = await ensureGlobalRole(
       DEFAULT_GLOBAL_USER_ROLE_CODE,
       'Usuário',
@@ -143,25 +113,76 @@ router.post('/users', ensureServiceKey, async (req: Request, res: Response) => {
     );
     await ensureUserRole(user.id, userRole.id, null);
 
-    let clientRoleCode: string | null = null;
-    if (clientId && client) {
-      const clientRole = await ensureClientDefaultRole(client.clientId);
-      clientRoleCode = clientRole.code;
-      await ensureUserRole(user.id, clientRole.id, null);
-    }
-
     const response = await formatUserResponse(user);
 
     return res.status(201).json({
       ...response,
       created: true,
-      clientRoleCode,
     });
   } catch (error) {
     console.error('[API] Erro ao criar usuário:', error);
     return res.status(500).json({
       error: 'Internal server error',
       message: 'An error occurred while creating the user',
+    });
+  }
+});
+
+/**
+ * Endpoint para gerenciar atribuições de papéis de cliente via API.
+ * Permite que um cliente adicione ou remova papéis de seus usuários.
+ */
+router.post('/roles/assignments', ensureServiceKey, async (req: Request, res: Response) => {
+  try {
+    const { email, clientId, roleCode, action } = req.body as RoleAssignmentBody;
+
+    if (!email || !clientId || !roleCode || !action) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'email, clientId, roleCode and action (add|remove) are required',
+      });
+    }
+
+    // Busca o usuário
+    const userResult = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    const user = userResult[0];
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Busca o cliente
+    const clientResult = await db.select().from(clients).where(eq(clients.clientId, clientId)).limit(1);
+    if (!clientResult[0]) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // Busca o papel
+    const role = await getRoleByScopeAndCode('CLIENT', roleCode, clientId);
+    if (!role) {
+      return res.status(404).json({ 
+        error: 'Role not found', 
+        message: `Role '${roleCode}' not found for client '${clientId}'` 
+      });
+    }
+
+    if (action === 'add') {
+      await ensureUserRole(user.id, role.id, null);
+      console.log(`[API] Papel '${roleCode}' adicionado ao usuário ${email} para o cliente ${clientId}`);
+    } else if (action === 'remove') {
+      await removeUserRole(user.id, role.id);
+      console.log(`[API] Papel '${roleCode}' removido do usuário ${email} para o cliente ${clientId}`);
+    } else {
+      return res.status(400).json({ error: 'Invalid action. Use "add" or "remove".' });
+    }
+
+    const response = await formatUserResponse(user);
+    return res.status(200).json(response);
+
+  } catch (error) {
+    console.error('[API] Erro ao gerenciar papel:', error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: 'An error occurred while managing role assignment',
     });
   }
 });
